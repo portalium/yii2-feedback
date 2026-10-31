@@ -5,8 +5,8 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
 
 - `launcherStyle: 'tab'`: a vertical tab on the middle of the right edge → a choice of two cards (show on screen /
   describe in writing) → the screenshot full screen with a toolbar at the top (tools, colors, undo, delete,
-  Cancel, Continue) → a short form (screenshot preview to edit or remove, kind: bug / idea / question, comment,
-  optional email). Bottom sheet on phones, a card next to the tab on wider screens. The title is the first line
+  Cancel, Continue) → a short form (kind: bug / idea / question, comment, one line to edit / remove / add the
+  screenshot, optional email). Bottom sheet on phones, a card next to the tab on wider screens. The title is the first line
   of the comment; the kind is sent as `category`. Turkish catalog (`tr`) added.
 - `captureOnOpen` option: the launcher captures the page at once and opens the annotation editor; after
   saving, the form opens with the screenshot attached. Without the option the widget works as before.

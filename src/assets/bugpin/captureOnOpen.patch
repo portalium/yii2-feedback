@@ -1,5 +1,5 @@
 diff --color -ruN a/shared/types.ts b/shared/types.ts
---- a/shared/types.ts	2026-10-31 23:15:21
+--- a/shared/types.ts	2026-11-01 00:17:28
 +++ b/shared/types.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  // Locale Types
@@ -18,7 +18,7 @@ diff --color -ruN a/shared/types.ts b/shared/types.ts
  
  export type LocalizedString = Partial<Record<LocaleCode, string>> & { en: string };
 diff --color -ruN a/widget/annotate/AnnotationCanvas.tsx b/widget/annotate/AnnotationCanvas.tsx
---- a/widget/annotate/AnnotationCanvas.tsx	2026-10-31 23:15:21
+--- a/widget/annotate/AnnotationCanvas.tsx	2026-11-01 00:17:28
 +++ b/widget/annotate/AnnotationCanvas.tsx	2026-10-31 23:15:19
 @@ -17,6 +17,7 @@
    ZoomOut,
@@ -187,7 +187,7 @@ diff --color -ruN a/widget/annotate/AnnotationCanvas.tsx b/widget/annotate/Annot
        >
          <canvas ref={canvasRef} />
 diff --color -ruN a/widget/api/submit.ts b/widget/api/submit.ts
---- a/widget/api/submit.ts	2026-10-31 23:15:21
+--- a/widget/api/submit.ts	2026-11-01 00:17:28
 +++ b/widget/api/submit.ts	2026-10-31 22:51:04
 @@ -18,6 +18,8 @@
    title: string;
@@ -216,7 +216,7 @@ diff --color -ruN a/widget/api/submit.ts b/widget/api/submit.ts
    }
  
 diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
---- a/widget/capture/screenshot.ts	2026-10-31 23:15:21
+--- a/widget/capture/screenshot.ts	2026-11-01 00:17:28
 +++ b/widget/capture/screenshot.ts	2026-10-31 21:37:28
 @@ -1,5 +1,5 @@
 -import { toCanvas } from 'html-to-image';
@@ -570,7 +570,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
        pixelRatio: dpr,
        backgroundColor: bgColor,
 diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
---- a/widget/components/App.tsx	2026-10-31 23:15:21
+--- a/widget/components/App.tsx	2026-11-01 00:17:28
 +++ b/widget/components/App.tsx	2026-10-31 22:51:04
 @@ -2,6 +2,9 @@
  import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
@@ -862,11 +862,11 @@ diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
            onClose={handleRequestClose}
 diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/FeedbackForm.tsx
 --- a/widget/components/FeedbackForm.tsx	1970-01-01 02:00:00
-+++ b/widget/components/FeedbackForm.tsx	2026-10-31 22:50:21
-@@ -0,0 +1,167 @@
++++ b/widget/components/FeedbackForm.tsx	2026-11-01 00:12:50
+@@ -0,0 +1,164 @@
 +import { FunctionComponent } from 'preact';
 +import { useState } from 'preact/hooks';
-+import { ImagePlus, Pencil, X } from 'lucide-preact';
++import { ImagePlus, Paperclip } from 'lucide-preact';
 +import { useLocale } from '../hooks/use-locale.js';
 +import { t, type WidgetCatalogKey } from '../i18n/index.js';
 +import { cn } from '../lib/utils';
@@ -904,8 +904,8 @@ diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/Feedb
 +}
 +
 +/**
-+ * Last step of the 'tab' style: the screenshot preview (edit, remove or add), the kind of feedback, one comment
-+ * field and an optional email.
++ * Last step of the 'tab' style: the kind of feedback, one comment field, a line for the screenshot (edit, remove
++ * or add) and an optional email.
 + */
 +export const FeedbackForm: FunctionComponent<FeedbackFormProps> = ({
 +  formData,
@@ -936,46 +936,8 @@ diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/Feedb
 +  };
 +
 +  return (
-+    <FeedbackPanel title={t('menu.title')} onClose={onClose} tall>
++    <FeedbackPanel title={t('menu.title')} onClose={onClose}>
 +      <form class="flex flex-col gap-4" onSubmit={submit} noValidate>
-+        {screenshot ? (
-+          <div class="group relative h-36 rounded-lg overflow-hidden border border-solid border-border bg-muted">
-+            <button
-+              type="button"
-+              class="block w-full h-full p-0 border-none bg-transparent cursor-pointer"
-+              onClick={onEditScreenshot}
-+              aria-label={t('form.screenshot.edit')}
-+            >
-+              <img src={screenshot} alt="" class="w-full h-full object-cover object-top" />
-+              <span class="absolute left-2 bottom-2 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/70 text-white text-xs font-medium [&_svg]:w-3.5 [&_svg]:h-3.5">
-+                <Pencil />
-+                {t('form.screenshot.edit')}
-+              </span>
-+            </button>
-+            <button
-+              type="button"
-+              class="absolute right-2 top-2 flex items-center justify-center w-7 h-7 p-0 border-none rounded-full bg-black/70 text-white cursor-pointer hover:bg-black/90 [&_svg]:w-4 [&_svg]:h-4"
-+              onClick={onRemoveScreenshot}
-+              aria-label={t('form.screenshot.remove')}
-+              title={t('form.screenshot.remove')}
-+            >
-+              <X />
-+            </button>
-+          </div>
-+        ) : (
-+          canAnnotate && (
-+            <button
-+              type="button"
-+              class="flex items-center justify-center gap-2 h-14 rounded-lg border-2 border-dashed border-border bg-transparent text-sm font-medium text-muted-foreground cursor-pointer hover:text-foreground hover:border-foreground/40 disabled:opacity-50 [&_svg]:w-5 [&_svg]:h-5"
-+              disabled={isCapturing}
-+              onClick={onAddScreenshot}
-+            >
-+              <ImagePlus />
-+              {t('form.screenshot.add')}
-+            </button>
-+          )
-+        )}
-+
 +        <div role="radiogroup" aria-label={t('form.type.label')} class="grid grid-cols-3 gap-2">
 +          {(Object.keys(CATEGORIES) as FeedbackCategory[]).map((value) => (
 +            <button
@@ -987,7 +949,7 @@ diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/Feedb
 +                'h-9 rounded-full border border-solid text-sm font-medium cursor-pointer transition-colors',
 +                category === value
 +                  ? 'border-[var(--button-color)] bg-[var(--button-color)] text-[var(--button-text-color)]'
-+                  : 'border-border bg-transparent text-foreground hover:bg-foreground/5'
++                  : 'border-foreground/25 bg-transparent text-foreground hover:bg-foreground/5'
 +              )}
 +              onClick={() => setCategory(value)}
 +            >
@@ -998,7 +960,7 @@ diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/Feedb
 +
 +        <div>
 +          <Textarea
-+            class="min-h-28 text-base"
++            class="min-h-28 text-base border-foreground/25"
 +            placeholder={t('form.comment.placeholder')}
 +            value={formData.description}
 +            error={!!errors.comment}
@@ -1010,10 +972,45 @@ diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/Feedb
 +          {errors.comment && <p class="mt-1 mb-0 text-sm text-destructive">{errors.comment}</p>}
 +        </div>
 +
++        {screenshot ? (
++          <div class="flex items-center gap-2 text-sm [&_svg]:w-4 [&_svg]:h-4 [&_svg]:shrink-0">
++            <Paperclip class="text-muted-foreground" />
++            <span class="text-muted-foreground">{t('form.screenshot.attached')}</span>
++            <span class="text-muted-foreground" aria-hidden="true">·</span>
++            <button
++              type="button"
++              class="p-0 border-none bg-transparent font-medium text-[var(--button-color)] cursor-pointer hover:underline"
++              onClick={onEditScreenshot}
++            >
++              {t('form.screenshot.edit')}
++            </button>
++            <span class="text-muted-foreground" aria-hidden="true">·</span>
++            <button
++              type="button"
++              class="p-0 border-none bg-transparent text-muted-foreground cursor-pointer hover:underline"
++              onClick={onRemoveScreenshot}
++            >
++              {t('form.screenshot.remove')}
++            </button>
++          </div>
++        ) : (
++          canAnnotate && (
++            <button
++              type="button"
++              class="flex items-center gap-2 self-start p-0 border-none bg-transparent text-sm font-medium text-[var(--button-color)] cursor-pointer hover:underline disabled:opacity-50 [&_svg]:w-4 [&_svg]:h-4"
++              disabled={isCapturing}
++              onClick={onAddScreenshot}
++            >
++              <ImagePlus />
++              {t('form.screenshot.add')}
++            </button>
++          )
++        )}
++
 +        <div>
 +          <Input
 +            type="email"
-+            class="text-base"
++            class="text-base border-foreground/25"
 +            placeholder={t('form.email.placeholder')}
 +            value={formData.reporterEmail}
 +            error={!!errors.email}
@@ -1107,8 +1104,8 @@ diff --color -ruN a/widget/components/FeedbackMenu.tsx b/widget/components/Feedb
 +};
 diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/FeedbackPanel.tsx
 --- a/widget/components/FeedbackPanel.tsx	1970-01-01 02:00:00
-+++ b/widget/components/FeedbackPanel.tsx	2026-10-31 21:55:49
-@@ -0,0 +1,63 @@
++++ b/widget/components/FeedbackPanel.tsx	2026-11-01 00:11:34
+@@ -0,0 +1,59 @@
 +import { ComponentChildren, FunctionComponent } from 'preact';
 +import { useEffect } from 'preact/hooks';
 +import { X } from 'lucide-preact';
@@ -1117,8 +1114,6 @@ diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/Feed
 +interface FeedbackPanelProps {
 +  title: string;
 +  onClose: () => void;
-+  /** Fills the phone screen (the form) instead of sitting at the bottom (the choice). */
-+  tall?: boolean;
 +  children: ComponentChildren;
 +}
 +
@@ -1128,7 +1123,6 @@ diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/Feed
 +export const FeedbackPanel: FunctionComponent<FeedbackPanelProps> = ({
 +  title,
 +  onClose,
-+  tall,
 +  children,
 +}) => {
 +  useEffect(() => {
@@ -1148,10 +1142,9 @@ diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/Feed
 +        aria-labelledby="bugpin-panel-title"
 +        class={
 +          'absolute inset-x-0 bottom-0 flex flex-col bg-background text-foreground shadow-2xl ' +
-+          'rounded-t-2xl animate-[slideUp_0.2s_ease-out] overflow-y-auto ' +
-+          (tall ? 'top-0 rounded-t-none ' : 'max-h-[90vh] ') +
++          'rounded-t-2xl animate-[slideUp_0.2s_ease-out] overflow-y-auto max-h-[90vh] ' +
 +          'sm:inset-auto sm:right-14 sm:top-1/2 sm:[transform:translateY(-50%)] sm:w-[360px] sm:max-h-[85vh] sm:rounded-xl ' +
-+          'sm:border sm:border-solid sm:border-border'
++          'sm:border sm:border-solid sm:border-foreground/15'
 +        }
 +      >
 +        <div class="flex items-center justify-between px-5 pt-5 pb-2">
@@ -1228,7 +1221,7 @@ diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/Feedba
 +  );
 +};
 diff --color -ruN a/widget/components/WidgetLauncherButton.tsx b/widget/components/WidgetLauncherButton.tsx
---- a/widget/components/WidgetLauncherButton.tsx	2026-10-31 23:15:21
+--- a/widget/components/WidgetLauncherButton.tsx	2026-11-01 00:17:28
 +++ b/widget/components/WidgetLauncherButton.tsx	2026-10-31 21:00:17
 @@ -10,6 +10,7 @@
  
@@ -1263,7 +1256,7 @@ diff --color -ruN a/widget/components/WidgetLauncherButton.tsx b/widget/componen
          ref={buttonRef}
          class={cn(
 diff --color -ruN a/widget/config.ts b/widget/config.ts
---- a/widget/config.ts	2026-10-31 23:15:21
+--- a/widget/config.ts	2026-11-01 00:17:28
 +++ b/widget/config.ts	2026-10-31 21:50:39
 @@ -60,6 +60,14 @@
    userActivityCapture: UserActivityCapturePolicy;
@@ -1281,7 +1274,7 @@ diff --color -ruN a/widget/config.ts b/widget/config.ts
    maxImageUploadSize: number;
    maxVideoUploadSize: number;
 diff --color -ruN a/widget/i18n/index.ts b/widget/i18n/index.ts
---- a/widget/i18n/index.ts	2026-10-31 23:15:21
+--- a/widget/i18n/index.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/index.ts	2026-10-31 21:50:07
 @@ -8,6 +8,7 @@
  import it from './locales/it.js';
@@ -1300,7 +1293,7 @@ diff --color -ruN a/widget/i18n/index.ts b/widget/i18n/index.ts
  
  const enCatalog: EnCatalog = en;
 diff --color -ruN a/widget/i18n/locales/de.ts b/widget/i18n/locales/de.ts
---- a/widget/i18n/locales/de.ts	2026-10-31 23:15:21
+--- a/widget/i18n/locales/de.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/locales/de.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1311,9 +1304,9 @@ diff --color -ruN a/widget/i18n/locales/de.ts b/widget/i18n/locales/de.ts
  
    'aria.launcher': 'Bug melden',
 diff --color -ruN a/widget/i18n/locales/en.ts b/widget/i18n/locales/en.ts
---- a/widget/i18n/locales/en.ts	2026-10-31 23:15:21
-+++ b/widget/i18n/locales/en.ts	2026-10-31 22:49:38
-@@ -101,6 +101,31 @@
+--- a/widget/i18n/locales/en.ts	2026-11-01 00:17:28
++++ b/widget/i18n/locales/en.ts	2026-11-01 00:11:16
+@@ -101,6 +101,32 @@
    'annotation.defaultText': 'Text',
    'annotation.buttons.cancel': 'Cancel',
    'annotation.buttons.done': 'Done',
@@ -1341,12 +1334,13 @@ diff --color -ruN a/widget/i18n/locales/en.ts b/widget/i18n/locales/en.ts
 +  'form.type.bug': 'Bug',
 +  'form.type.idea': 'Idea',
 +  'form.type.question': 'Question',
++  'form.screenshot.attached': 'Screenshot attached',
 +  'form.defaultTitle': 'Feedback',
  } as const satisfies Record<string, string>;
  
  export default en;
 diff --color -ruN a/widget/i18n/locales/es.ts b/widget/i18n/locales/es.ts
---- a/widget/i18n/locales/es.ts	2026-10-31 23:15:21
+--- a/widget/i18n/locales/es.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/locales/es.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1357,7 +1351,7 @@ diff --color -ruN a/widget/i18n/locales/es.ts b/widget/i18n/locales/es.ts
  
    'aria.launcher': 'Informar de un error',
 diff --color -ruN a/widget/i18n/locales/fr.ts b/widget/i18n/locales/fr.ts
---- a/widget/i18n/locales/fr.ts	2026-10-31 23:15:21
+--- a/widget/i18n/locales/fr.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/locales/fr.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1368,7 +1362,7 @@ diff --color -ruN a/widget/i18n/locales/fr.ts b/widget/i18n/locales/fr.ts
  
    'aria.launcher': 'Signaler un bug',
 diff --color -ruN a/widget/i18n/locales/it.ts b/widget/i18n/locales/it.ts
---- a/widget/i18n/locales/it.ts	2026-10-31 23:15:21
+--- a/widget/i18n/locales/it.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/locales/it.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1379,7 +1373,7 @@ diff --color -ruN a/widget/i18n/locales/it.ts b/widget/i18n/locales/it.ts
  
    'aria.launcher': 'Segnala bug',
 diff --color -ruN a/widget/i18n/locales/ja.ts b/widget/i18n/locales/ja.ts
---- a/widget/i18n/locales/ja.ts	2026-10-31 23:15:21
+--- a/widget/i18n/locales/ja.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/locales/ja.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1390,7 +1384,7 @@ diff --color -ruN a/widget/i18n/locales/ja.ts b/widget/i18n/locales/ja.ts
  
    'aria.launcher': 'バグを報告',
 diff --color -ruN a/widget/i18n/locales/nl.ts b/widget/i18n/locales/nl.ts
---- a/widget/i18n/locales/nl.ts	2026-10-31 23:15:21
+--- a/widget/i18n/locales/nl.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/locales/nl.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1402,8 +1396,8 @@ diff --color -ruN a/widget/i18n/locales/nl.ts b/widget/i18n/locales/nl.ts
    'aria.launcher': 'Bug melden',
 diff --color -ruN a/widget/i18n/locales/tr.ts b/widget/i18n/locales/tr.ts
 --- a/widget/i18n/locales/tr.ts	1970-01-01 02:00:00
-+++ b/widget/i18n/locales/tr.ts	2026-10-31 22:49:38
-@@ -0,0 +1,128 @@
++++ b/widget/i18n/locales/tr.ts	2026-11-01 00:11:16
+@@ -0,0 +1,129 @@
 +import type { WidgetCatalog } from '../catalog.js';
 +
 +const tr: WidgetCatalog = {
@@ -1528,12 +1522,13 @@ diff --color -ruN a/widget/i18n/locales/tr.ts b/widget/i18n/locales/tr.ts
 +  'form.type.bug': 'Hata',
 +  'form.type.idea': 'Öneri',
 +  'form.type.question': 'Soru',
++  'form.screenshot.attached': 'Ekran görüntüsü eklendi',
 +  'form.defaultTitle': 'Geri bildirim',
 +};
 +
 +export default tr;
 diff --color -ruN a/widget/i18n/locales/zh.ts b/widget/i18n/locales/zh.ts
---- a/widget/i18n/locales/zh.ts	2026-10-31 23:15:21
+--- a/widget/i18n/locales/zh.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/locales/zh.ts	2026-10-31 21:50:07
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1544,7 +1539,7 @@ diff --color -ruN a/widget/i18n/locales/zh.ts b/widget/i18n/locales/zh.ts
  
    'aria.launcher': '报告缺陷',
 diff --color -ruN a/widget/i18n/normalize.ts b/widget/i18n/normalize.ts
---- a/widget/i18n/normalize.ts	2026-10-31 23:15:21
+--- a/widget/i18n/normalize.ts	2026-11-01 00:17:28
 +++ b/widget/i18n/normalize.ts	2026-10-31 21:56:59
 @@ -28,7 +28,8 @@
      primary === 'nl' ||
@@ -1557,7 +1552,7 @@ diff --color -ruN a/widget/i18n/normalize.ts b/widget/i18n/normalize.ts
      return primary;
    }
 diff --color -ruN a/widget/index.ts b/widget/index.ts
---- a/widget/index.ts	2026-10-31 23:15:21
+--- a/widget/index.ts	2026-11-01 00:17:28
 +++ b/widget/index.ts	2026-10-31 21:31:34
 @@ -17,6 +17,8 @@
    stopUserActivityCapture,
@@ -1625,7 +1620,7 @@ diff --color -ruN a/widget/launcher-state.ts b/widget/launcher-state.ts
 +  document.dispatchEvent(new CustomEvent('bugpin:launcher', { detail: value }));
 +}
 diff --color -ruN a/widget/storage/report-buffer.ts b/widget/storage/report-buffer.ts
---- a/widget/storage/report-buffer.ts	2026-10-31 23:15:21
+--- a/widget/storage/report-buffer.ts	2026-11-01 00:17:28
 +++ b/widget/storage/report-buffer.ts	2026-10-31 19:14:41
 @@ -217,7 +217,7 @@
            getExtensionFromDataUrl(item.dataUrl) || getExtensionFromMimeType(item.mimeType);
