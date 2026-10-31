@@ -1,3 +1,15 @@
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/annotate/AnnotationCanvas.tsx widget/annotate/AnnotationCanvas.tsx
+--- widget.orig/annotate/AnnotationCanvas.tsx	2026-10-31 19:14:41
++++ widget/annotate/AnnotationCanvas.tsx	2026-10-31 21:21:27
+@@ -1164,7 +1164,7 @@
+ 
+       {/* Canvas */}
+       <div
+-        class="flex-auto min-h-0 min-w-[700px] overflow-auto flex items-center justify-center p-4 bg-muted"
++        class="flex-auto min-h-0 min-w-0 md:min-w-[700px] overflow-auto flex items-center justify-center p-4 bg-muted"
+         ref={canvasWrapperRef}
+       >
+         <canvas ref={canvasRef} />
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/api/submit.ts widget/api/submit.ts
 --- widget.orig/api/submit.ts	2026-10-31 19:14:41
 +++ widget/api/submit.ts	2026-10-31 19:14:41
@@ -352,7 +364,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
        backgroundColor: bgColor,
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/App.tsx widget/components/App.tsx
 --- widget.orig/components/App.tsx	2026-10-31 19:14:41
-+++ widget/components/App.tsx	2026-10-31 21:00:17
++++ widget/components/App.tsx	2026-10-31 21:21:27
 @@ -136,6 +136,9 @@
      setStep('form');
    }, []);
@@ -432,23 +444,59 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
    const handleConsentConfirm = useCallback(() => {
      handleCaptureScreenshot();
    }, [handleCaptureScreenshot]);
-@@ -422,6 +450,7 @@
+@@ -420,27 +448,31 @@
+ 
+   return (
      <div ref={containerRef} class={`bugpin-container bugpin-theme-${effectiveTheme}`}>
-       <WidgetLauncherButton
-         position={config.position}
-+        offset={config.launcherOffset}
-         buttonText={config.buttonText}
-         buttonShape={config.buttonShape}
-         buttonIcon={config.buttonIcon}
-@@ -439,7 +468,7 @@
-         enableHoverScaleEffect={config.enableHoverScaleEffect}
-         tooltipEnabled={config.tooltipEnabled}
-         tooltipText={config.tooltipText}
+-      <WidgetLauncherButton
+-        position={config.position}
+-        buttonText={config.buttonText}
+-        buttonShape={config.buttonShape}
+-        buttonIcon={config.buttonIcon}
+-        buttonIconSize={config.buttonIconSize}
+-        buttonIconStroke={config.buttonIconStroke}
+-        theme={config.theme}
+-        lightButtonColor={config.lightButtonColor}
+-        lightTextColor={config.lightTextColor}
+-        lightButtonHoverColor={config.lightButtonHoverColor}
+-        lightTextHoverColor={config.lightTextHoverColor}
+-        darkButtonColor={config.darkButtonColor}
+-        darkTextColor={config.darkTextColor}
+-        darkButtonHoverColor={config.darkButtonHoverColor}
+-        darkTextHoverColor={config.darkTextHoverColor}
+-        enableHoverScaleEffect={config.enableHoverScaleEffect}
+-        tooltipEnabled={config.tooltipEnabled}
+-        tooltipText={config.tooltipText}
 -        onClick={handleOpenWidget}
-+        onClick={handleLauncherClick}
-       />
+-      />
++      {/* Hidden while the editor or the form is open: on small screens it covered their buttons. */}
++      {step === 'closed' && (
++        <WidgetLauncherButton
++          position={config.position}
++          offset={config.launcherOffset}
++          buttonText={config.buttonText}
++          buttonShape={config.buttonShape}
++          buttonIcon={config.buttonIcon}
++          buttonIconSize={config.buttonIconSize}
++          buttonIconStroke={config.buttonIconStroke}
++          theme={config.theme}
++          lightButtonColor={config.lightButtonColor}
++          lightTextColor={config.lightTextColor}
++          lightButtonHoverColor={config.lightButtonHoverColor}
++          lightTextHoverColor={config.lightTextHoverColor}
++          darkButtonColor={config.darkButtonColor}
++          darkTextColor={config.darkTextColor}
++          darkButtonHoverColor={config.darkButtonHoverColor}
++          darkTextHoverColor={config.darkTextHoverColor}
++          enableHoverScaleEffect={config.enableHoverScaleEffect}
++          tooltipEnabled={config.tooltipEnabled}
++          tooltipText={config.tooltipText}
++          onClick={handleLauncherClick}
++        />
++      )}
  
        {step === 'annotating' && annotatingMedia && (
+         <div class="fixed inset-0 z-[2147483646] bg-black/50 flex items-center justify-center p-5 animate-[fadeIn_0.2s_ease-out]">
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/WidgetLauncherButton.tsx widget/components/WidgetLauncherButton.tsx
 --- widget.orig/components/WidgetLauncherButton.tsx	2026-10-31 19:14:41
 +++ widget/components/WidgetLauncherButton.tsx	2026-10-31 21:00:17

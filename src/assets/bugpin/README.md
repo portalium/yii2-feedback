@@ -11,6 +11,8 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
   of the viewport are kept as empty boxes; the inlined font CSS is built once after start and reused;
   `capturePixelRatio` option (Suite passes 1). `launcherOffset` option: launcher distance from its corner in px.
   On a 9,000-node test page: 6.4 s → 1.5 s.
+- Small screens: the annotation area is no longer at least 700 px wide (the image was placed off screen); the
+  launcher is hidden while the editor or the form is open.
 - Only the CSS properties in `CAPTURE_STYLE_PROPERTIES` are copied per node (html-to-image copies all ~675,
   CSS variables included, into a 100 MB SVG); the CSS variables are set once on the capture root. On a Suite
   flow page: 7.5 s → 1.8 s, the image differs from the full copy in under 0.06 % of pixels (dark and light).
