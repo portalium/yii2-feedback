@@ -1,6 +1,6 @@
 {
-	"name" : "{{vendor}}/yii2-{{package}}",
-	"description" : "{{package}} Module for Portalium (Yii2)",
+	"name" : "portalium/yii2-feedback",
+	"description" : "In-app bug reports for Portalium (Yii2): screenshot, annotation, console and network errors, sent by mail",
 	"type" : "portalium-module",
 	"license": "MIT",
 	"homepage" : "https://portalium.dev",
@@ -12,11 +12,16 @@
 		}
 	],
 	"support" : {
-		"issues" : "https://github.com/{{vendor}}/yii2-{{package}}/issues"
+		"issues" : "https://github.com/portalium/yii2-feedback/issues"
+	},
+	"require" : {
+		"php": ">=8.1",
+		"portalium/yii2-core": "*",
+		"portalium/yii2-site": "*"
 	},
 	"autoload" : {
 		"psr-4" : {
-			"{{vendor}}\\{{package}}\\" : "src/"
+			"portalium\\feedback\\" : "src/"
 		}
 	}
 }

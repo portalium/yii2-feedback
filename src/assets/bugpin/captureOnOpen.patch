@@ -1,0 +1,491 @@
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/api/submit.ts widget/api/submit.ts
+--- widget.orig/api/submit.ts	2026-10-31 19:14:41
++++ widget/api/submit.ts	2026-10-31 19:14:41
+@@ -121,7 +121,7 @@
+         `[BugPin] Media ${i}: dataUrl length=${item.dataUrl.length}, blob size=${blob.size}, type=${blob.type}`
+       );
+ 
+-      formData.append('media', blob, `${prefix}-${i}.${ext}`);
++      formData.append('media[]', blob, `${prefix}-${i}.${ext}`);
+     }
+   }
+ 
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/capture/screenshot.ts widget/capture/screenshot.ts
+--- widget.orig/capture/screenshot.ts	2026-10-31 19:14:41
++++ widget/capture/screenshot.ts	2026-10-31 20:08:38
+@@ -1,5 +1,5 @@
+-import { toCanvas } from 'html-to-image';
+-import { withCaptureClone } from './capture-clone';
++import { getFontEmbedCSS, toCanvas } from 'html-to-image';
++import { withCaptureClone, type CloneRoot } from './capture-clone';
+ import { recordScrollbars } from './scrollbars';
+ 
+ type ToCanvasOptions = NonNullable<Parameters<typeof toCanvas>[1]>;
+@@ -23,6 +23,178 @@
+ const MAX_CANVAS_DIMENSION = 16384;
+ const MAX_TOTAL_PIXELS = 40_000_000;
+ 
++// html-to-image copies every computed property (about 350) of every node by default; on a flow page that is
++// most of the capture time and a 100 MB SVG. These cover what affects rendering; anything else keeps its
++// initial value in the clone.
++const CAPTURE_STYLE_PROPERTIES = [
++  'display',
++  'position',
++  'top',
++  'right',
++  'bottom',
++  'left',
++  'z-index',
++  'float',
++  'clear',
++  'box-sizing',
++  'width',
++  'height',
++  'min-width',
++  'min-height',
++  'max-width',
++  'max-height',
++  'aspect-ratio',
++  'margin-top',
++  'margin-right',
++  'margin-bottom',
++  'margin-left',
++  'padding-top',
++  'padding-right',
++  'padding-bottom',
++  'padding-left',
++  'overflow-x',
++  'overflow-y',
++  'overflow-wrap',
++  'visibility',
++  'opacity',
++  'transform',
++  'transform-origin',
++  'translate',
++  'rotate',
++  'scale',
++  'flex-direction',
++  'flex-wrap',
++  'flex-grow',
++  'flex-shrink',
++  'flex-basis',
++  'order',
++  'align-items',
++  'align-self',
++  'align-content',
++  'justify-content',
++  'justify-items',
++  'justify-self',
++  'row-gap',
++  'column-gap',
++  'grid-template-columns',
++  'grid-template-rows',
++  'grid-template-areas',
++  'grid-auto-columns',
++  'grid-auto-rows',
++  'grid-auto-flow',
++  'grid-column-start',
++  'grid-column-end',
++  'grid-row-start',
++  'grid-row-end',
++  'color',
++  'color-scheme',
++  'background-color',
++  'background-image',
++  'background-size',
++  'background-position',
++  'background-repeat',
++  'background-clip',
++  'background-origin',
++  'background-attachment',
++  'border-top-width',
++  'border-right-width',
++  'border-bottom-width',
++  'border-left-width',
++  'border-top-style',
++  'border-right-style',
++  'border-bottom-style',
++  'border-left-style',
++  'border-top-color',
++  'border-right-color',
++  'border-bottom-color',
++  'border-left-color',
++  'border-top-left-radius',
++  'border-top-right-radius',
++  'border-bottom-right-radius',
++  'border-bottom-left-radius',
++  'border-collapse',
++  'border-spacing',
++  'table-layout',
++  'caption-side',
++  'empty-cells',
++  'outline-width',
++  'outline-style',
++  'outline-color',
++  'outline-offset',
++  'box-shadow',
++  'filter',
++  'backdrop-filter',
++  'mix-blend-mode',
++  'clip-path',
++  'mask-image',
++  'object-fit',
++  'object-position',
++  'isolation',
++  'font-family',
++  'font-size',
++  'font-weight',
++  'font-style',
++  'font-variant',
++  'font-stretch',
++  'line-height',
++  'letter-spacing',
++  'word-spacing',
++  'text-align',
++  'text-indent',
++  'text-transform',
++  'text-decoration-line',
++  'text-decoration-color',
++  'text-decoration-style',
++  'text-overflow',
++  'text-shadow',
++  'white-space',
++  'word-break',
++  'hyphens',
++  'vertical-align',
++  'direction',
++  'unicode-bidi',
++  'writing-mode',
++  'list-style-type',
++  'list-style-position',
++  'list-style-image',
++  'content',
++  'quotes',
++  '-webkit-line-clamp',
++  '-webkit-box-orient',
++  '-webkit-text-fill-color',
++  '-webkit-text-stroke-width',
++  '-webkit-text-stroke-color',
++  '-webkit-background-clip',
++  'line-clamp',
++  'fill',
++  'fill-opacity',
++  'fill-rule',
++  'stroke',
++  'stroke-width',
++  'stroke-opacity',
++  'stroke-dasharray',
++  'stroke-dashoffset',
++  'stroke-linecap',
++  'stroke-linejoin',
++  'stroke-miterlimit',
++  'marker-start',
++  'marker-mid',
++  'marker-end',
++  'paint-order',
++  'shape-rendering',
++  'stop-color',
++  'stop-opacity',
++  'cx',
++  'cy',
++  'r',
++  'rx',
++  'ry',
++  'x',
++  'y',
++  'd',
++  'vector-effect',
++];
++
+ // Data attribute used to exclude elements from capture
+ const EXCLUDE_ATTRIBUTE = 'data-bugpin-exclude';
+ 
+@@ -164,9 +336,69 @@
+ }
+ 
+ /**
++ * Filter for 'visible' captures that also skips what the crop would not show. Cloning copies the computed
++ * style of every node, so on large pages (flow editors, long lists) this is most of the wait. Nothing that can
++ * move what is on screen is removed: out-of-flow elements (absolute, fixed) off screen are left out, and an
++ * in-flow element below or right of the viewport is kept as an empty box (its size is in its copied style)
++ * while its content is skipped.
++ */
++function visibleOnlyFilter(): (node: Node) => boolean {
++  const viewWidth = window.innerWidth;
++  const viewHeight = window.innerHeight;
++  const beyond = new WeakMap<Element, boolean>();
++  const isBeyond = (element: Element): boolean => {
++    let result = beyond.get(element);
++    if (result === undefined) {
++      const rect = element.getBoundingClientRect();
++      result =
++        element !== document.documentElement &&
++        element !== document.body &&
++        rect.width > 0 &&
++        rect.height > 0 &&
++        (rect.top >= viewHeight || rect.left >= viewWidth);
++      beyond.set(element, result);
++    }
++    return result;
++  };
++  return (node: Node) => {
++    if (!shouldIncludeNode(node)) return false;
++    const parent = node.parentElement;
++    if (parent && isBeyond(parent)) return false;
++    if (!(node instanceof Element) || node === document.documentElement || node === document.body) {
++      return true;
++    }
++    const rect = node.getBoundingClientRect();
++    if (rect.width === 0 || rect.height === 0) return true;
++    const offScreen =
++      rect.top >= viewHeight || rect.left >= viewWidth || rect.bottom <= 0 || rect.right <= 0;
++    return !(offScreen && isOutOfFlow(node));
++  };
++}
++
++function isOutOfFlow(node: Element): boolean {
++  if (node instanceof SVGElement && !(node instanceof SVGSVGElement)) return true;
++  const position = getComputedStyle(node).position;
++  return position === 'absolute' || position === 'fixed';
++}
++
++/**
+  * Render `element` with html-to-image. BugPin's clone is prepared right before
+  * serialization so its scrollbars match the live page.
+  */
++/**
++ * With includeStyleProperties the clone gets no CSS variables, yet rules cloned along with the page (style
++ * elements in the body, SVG) still read them. They inherit, so the capture root carries them for every node.
++ */
++function copyCustomProperties(element: Element, cloneRoot: CloneRoot): void {
++  const computed = getComputedStyle(element);
++  for (let i = 0; i < computed.length; i += 1) {
++    const name = computed[i];
++    if (name.startsWith('--')) {
++      cloneRoot.style.setProperty(name, computed.getPropertyValue(name));
++    }
++  }
++}
++
+ function renderToCanvas(
+   element: HTMLElement,
+   options: ToCanvasOptions
+@@ -176,7 +408,10 @@
+   const scrollbars = recordScrollbars(element, rootSizeLocked);
+   return withCaptureClone(
+     element,
+-    (_svg, cloneRoot) => scrollbars.apply(cloneRoot),
++    (_svg, cloneRoot) => {
++      scrollbars.apply(cloneRoot);
++      if (options.includeStyleProperties) copyCustomProperties(element, cloneRoot);
++    },
+     (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
+   );
+ }
+@@ -318,6 +553,28 @@
+   return { skip: false };
+ }
+ 
++// The @font-face CSS with the fonts inlined; html-to-image rebuilds it on every capture otherwise, which is
++// most of the wait on icon-heavy pages. Built once (warmUpFonts runs it after the widget starts) and reused.
++let fontEmbedCSS: Promise<string | undefined> | null = null;
++
++function cachedFontEmbedCSS(): Promise<string | undefined> {
++  if (!fontEmbedCSS) {
++    fontEmbedCSS = shouldSkipFontEmbedding().skip
++      ? Promise.resolve(undefined)
++      : getFontEmbedCSS(document.documentElement, { filter: shouldIncludeNode }).catch(() => undefined);
++  }
++  return fontEmbedCSS;
++}
++
++export function warmUpFonts(): void {
++  const start = () => void cachedFontEmbedCSS();
++  if ('requestIdleCallback' in window) {
++    window.requestIdleCallback(start, { timeout: 5000 });
++  } else {
++    setTimeout(start, 2000);
++  }
++}
++
+ /**
+  * Build capture options adapted to the current page. Pages without
+  * font-embedding hazards get full font embedding for pixel-perfect screenshots.
+@@ -331,6 +588,7 @@
+   }
+   return {
+     skipFonts: result.skip,
++    includeStyleProperties: CAPTURE_STYLE_PROPERTIES,
+     imagePlaceholder: TRANSPARENT_PIXEL,
+     // Prevent html-to-image from rejecting when a cloned <img> fails to render.
+     // This handles the case where fetch() succeeds (200) but returns non-image
+@@ -525,12 +783,13 @@
+       // Capture from origin to the end of the visible viewport
+       const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
+         ...getCaptureDefaults(),
++        fontEmbedCSS: await cachedFontEmbedCSS(),
+         cacheBust: cacheBust ?? false,
+         pixelRatio: dpr,
+         width: captureWidth,
+         height: captureHeight,
+         backgroundColor: bgColor,
+-        filter: shouldIncludeNode,
++        filter: visibleOnlyFilter(),
+       };
+ 
+       const fullCanvas = await renderToCanvas(element, toCanvasOptions);
+@@ -593,6 +852,7 @@
+ 
+       const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
+         ...getCaptureDefaults(),
++        fontEmbedCSS: await cachedFontEmbedCSS(),
+         cacheBust: cacheBust ?? true, // Default on for fullpage (more likely to have stale images)
+         pixelRatio: dpr,
+         width: fullWidth,
+@@ -612,6 +872,7 @@
+ 
+     const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
+       ...getCaptureDefaults(),
++      fontEmbedCSS: await cachedFontEmbedCSS(),
+       cacheBust: cacheBust ?? false, // Default off for element mode
+       pixelRatio: dpr,
+       backgroundColor: bgColor,
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/App.tsx widget/components/App.tsx
+--- widget.orig/components/App.tsx	2026-10-31 19:14:41
++++ widget/components/App.tsx	2026-10-31 19:25:16
+@@ -136,6 +136,9 @@
+     setStep('form');
+   }, []);
+ 
++  // Set by the launcher with captureOnOpen: the next capture opens the annotation editor instead of the form.
++  const annotateNextCapture = useRef(false);
++
+   // Check if there's any content in the form
+   const hasContent =
+     formData.title.trim() ||
+@@ -239,7 +242,7 @@
+       const dataUrl = await captureScreenshotFn({
+         method: config.captureMethod,
+         useScreenCaptureAPI: config.useScreenCaptureAPI,
+-        pixelRatioOverride: reduceScreenshotQuality ? 1 : undefined,
++        pixelRatioOverride: reduceScreenshotQuality ? 1 : config.capturePixelRatio,
+       });
+ 
+       // Reject oversized captures up-front instead of letting the server drop
+@@ -251,6 +254,7 @@
+         const sizeMb = Math.round((blob.size / (1024 * 1024)) * 10) / 10;
+         const limitMb = Math.round(config.maxScreenshotSize / (1024 * 1024));
+         setOversizedCapture({ sizeMb, limitMb });
++        annotateNextCapture.current = false;
+         setIsCapturing(false);
+         setActiveTab('media');
+         setStep('form');
+@@ -280,6 +284,13 @@
+ 
+         setMedia((prev) => [...prev, newMedia]);
+         setIsCapturing(false);
++        if (annotateNextCapture.current) {
++          annotateNextCapture.current = false;
++          setActiveTab('details');
++          setAnnotatingMediaId(newMedia.id);
++          setStep('annotating');
++          return;
++        }
+         setActiveTab('media'); // Stay on media tab after capture
+         setStep('form');
+       };
+@@ -296,6 +307,13 @@
+ 
+         setMedia((prev) => [...prev, newMedia]);
+         setIsCapturing(false);
++        if (annotateNextCapture.current) {
++          annotateNextCapture.current = false;
++          setActiveTab('details');
++          setAnnotatingMediaId(newMedia.id);
++          setStep('annotating');
++          return;
++        }
+         setActiveTab('media'); // Stay on media tab after capture
+         setStep('form');
+       };
+@@ -303,6 +321,7 @@
+       img.src = dataUrl;
+     } catch (error) {
+       console.error('[BugPin] Failed to capture screenshot:', error);
++      annotateNextCapture.current = false;
+       setIsCapturing(false);
+       setStep('form');
+       setToast({
+@@ -312,6 +331,15 @@
+     }
+   }, [config, captureScreenshotFn, showScreenCaptureConsent, reduceScreenshotQuality]);
+ 
++  const handleLauncherClick = useCallback(() => {
++    if (config.captureOnOpen && config.enableScreenshot && media.length === 0) {
++      annotateNextCapture.current = true;
++      handleCaptureScreenshot();
++      return;
++    }
++    handleOpenWidget();
++  }, [config, media.length, handleCaptureScreenshot, handleOpenWidget]);
++
+   const handleConsentConfirm = useCallback(() => {
+     handleCaptureScreenshot();
+   }, [handleCaptureScreenshot]);
+@@ -439,7 +467,7 @@
+         enableHoverScaleEffect={config.enableHoverScaleEffect}
+         tooltipEnabled={config.tooltipEnabled}
+         tooltipText={config.tooltipText}
+-        onClick={handleOpenWidget}
++        onClick={handleLauncherClick}
+       />
+ 
+       {step === 'annotating' && annotatingMedia && (
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/config.ts widget/config.ts
+--- widget.orig/config.ts	2026-10-31 19:14:41
++++ widget/config.ts	2026-10-31 19:25:16
+@@ -60,6 +60,10 @@
+   userActivityCapture: UserActivityCapturePolicy;
+   captureMethod: 'visible' | 'fullpage' | 'element';
+   useScreenCaptureAPI: boolean;
++  /** Launcher click captures the page at once and opens the annotation editor. */
++  captureOnOpen?: boolean;
++  /** Pixel ratio of screenshots; unset uses the device's (up to 2). 1 is about four times faster on HiDPI screens. */
++  capturePixelRatio?: number;
+   maxScreenshotSize: number;
+   maxImageUploadSize: number;
+   maxVideoUploadSize: number;
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/index.ts widget/index.ts
+--- widget.orig/index.ts	2026-10-31 19:14:41
++++ widget/index.ts	2026-10-31 19:25:16
+@@ -17,6 +17,7 @@
+   stopUserActivityCapture,
+ } from './capture/context.js';
+ import { buildWidgetConfigUrl } from './api/config-url.js';
++import { warmUpFonts } from './capture/screenshot.js';
+ 
+ // Widget styles (will be injected into Shadow DOM)
+ import styles from './styles/main.css?inline';
+@@ -186,6 +187,10 @@
+ 
+   // Render Preact app
+   render(h(App, { config }), root);
++
++  if (config.enableScreenshot) {
++    warmUpFonts();
++  }
+ }
+ 
+ /**
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/storage/report-buffer.ts widget/storage/report-buffer.ts
+--- widget.orig/storage/report-buffer.ts	2026-10-31 19:14:41
++++ widget/storage/report-buffer.ts	2026-10-31 19:14:41
+@@ -217,7 +217,7 @@
+           getExtensionFromDataUrl(item.dataUrl) || getExtensionFromMimeType(item.mimeType);
+         const isVideo = item.mimeType.startsWith('video/');
+         const prefix = isVideo ? 'video' : 'screenshot';
+-        formData.append('media', blob, `${prefix}-${i}.${ext}`);
++        formData.append('media[]', blob, `${prefix}-${i}.${ext}`);
+       }
+     }
+ 
