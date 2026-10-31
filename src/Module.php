@@ -15,6 +15,16 @@ class Module extends \portalium\base\Module
     public static $description = 'Feedback Module';
 
     /**
+     * Corner of the launcher button: bottom-right, bottom-left, top-right or top-left.
+     */
+    public $position = 'bottom-right';
+
+    /**
+     * Launcher distance from its corner in px, e.g. ['bottom' => 88] to clear another floating button.
+     */
+    public $launcherOffset = [];
+
+    /**
      * The BugPin widget builds its URLs from the site root, so the endpoints answer on /api/widget/...
      */
     public $apiRules = [

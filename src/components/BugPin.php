@@ -3,6 +3,7 @@
 namespace portalium\feedback\components;
 
 use portalium\feedback\bundles\BugPinAsset;
+use portalium\feedback\Module;
 use Yii;
 use yii\base\Event;
 use yii\helpers\FileHelper;
@@ -62,6 +63,13 @@ class BugPin
             'captureOnOpen' => true,
             'capturePixelRatio' => 1,
         ];
+        $module = $app->getModule('feedback');
+        if ($module instanceof Module) {
+            $settings['position'] = $module->position;
+            if ($module->launcherOffset) {
+                $settings['launcherOffset'] = $module->launcherOffset;
+            }
+        }
         if (!empty($identity->username)) {
             $settings['reporterName'] = (string) $identity->username;
         }
@@ -95,7 +103,7 @@ class BugPin
         $text = ['project' => null, 'global' => null, 'builtin' => null];
 
         return [
-            'position' => 'bottom-left',
+            'position' => 'bottom-right',
             'theme' => 'auto',
             'hidePoweredBy' => true,
             'buttonText' => $text,

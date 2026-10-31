@@ -33,6 +33,21 @@ class BugPinTest extends BugPinTestCase
         $this->assertArrayHasKey(BugPinAsset::class, $view->assetBundles);
     }
 
+    public function testLauncherPlacementComesFromTheModule(): void
+    {
+        $this->boot(self::KEY, '', true);
+        Yii::$app->setModule('feedback', [
+            'class' => \portalium\feedback\Module::class,
+            'position' => 'bottom-right',
+            'launcherOffset' => ['right' => 28, 'bottom' => 88],
+        ]);
+
+        $head = implode("\n", $this->render()->js[View::POS_HEAD] ?? []);
+
+        $this->assertStringContainsString('"position":"bottom-right"', $head);
+        $this->assertStringContainsString('"launcherOffset":{"right":28,"bottom":88}', $head);
+    }
+
     /**
      * The widget copies these fields over its defaults even when they are missing; buttonText undefined made the
      * launcher fail to render, so no button appeared.

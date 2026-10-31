@@ -22,6 +22,9 @@ composer require portalium/yii2-feedback
    ```php
    'feedback' => ['class' => 'portalium\feedback\Module'],
    ```
+   Web module options: `position` (`bottom-right` default, `bottom-left`, `top-right`, `top-left`) and
+   `launcherOffset` (px from that corner, e.g. `['right' => 32, 'bottom' => 88]` to sit above another floating
+   button; default 20 px).
 2. Settings:
    ```bash
    php portalium migrate --migrationPath=@vendor/portalium/yii2-feedback/src/migrations --interactive=0

@@ -352,7 +352,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
        backgroundColor: bgColor,
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/App.tsx widget/components/App.tsx
 --- widget.orig/components/App.tsx	2026-10-31 19:14:41
-+++ widget/components/App.tsx	2026-10-31 19:25:16
++++ widget/components/App.tsx	2026-10-31 21:00:17
 @@ -136,6 +136,9 @@
      setStep('form');
    }, []);
@@ -432,7 +432,15 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
    const handleConsentConfirm = useCallback(() => {
      handleCaptureScreenshot();
    }, [handleCaptureScreenshot]);
-@@ -439,7 +467,7 @@
+@@ -422,6 +450,7 @@
+     <div ref={containerRef} class={`bugpin-container bugpin-theme-${effectiveTheme}`}>
+       <WidgetLauncherButton
+         position={config.position}
++        offset={config.launcherOffset}
+         buttonText={config.buttonText}
+         buttonShape={config.buttonShape}
+         buttonIcon={config.buttonIcon}
+@@ -439,7 +468,7 @@
          enableHoverScaleEffect={config.enableHoverScaleEffect}
          tooltipEnabled={config.tooltipEnabled}
          tooltipText={config.tooltipText}
@@ -441,10 +449,45 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
        />
  
        {step === 'annotating' && annotatingMedia && (
+diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/WidgetLauncherButton.tsx widget/components/WidgetLauncherButton.tsx
+--- widget.orig/components/WidgetLauncherButton.tsx	2026-10-31 19:14:41
++++ widget/components/WidgetLauncherButton.tsx	2026-10-31 21:00:17
+@@ -10,6 +10,7 @@
+ 
+ interface WidgetLauncherButtonProps {
+   position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
++  offset?: { top?: number; right?: number; bottom?: number; left?: number };
+   buttonText: LauncherTextBundle;
+   buttonShape: 'round' | 'rectangle';
+   buttonIcon: string | null;
+@@ -39,6 +40,7 @@
+ 
+ export const WidgetLauncherButton: FunctionComponent<WidgetLauncherButtonProps> = ({
+   position,
++  offset,
+   buttonText,
+   buttonShape,
+   buttonIcon,
+@@ -152,7 +154,14 @@
+   const padding = buttonShape === 'round' ? `${buttonIconSize / 2}px` : '12px 20px';
+ 
+   return (
+-    <div class={cn('fixed z-[2147483647]', positionClasses[position])}>
++    <div
++      class={cn('fixed z-[2147483647]', positionClasses[position])}
++      style={Object.fromEntries(
++        Object.entries(offset ?? {})
++          .filter(([, value]) => typeof value === 'number')
++          .map(([side, value]) => [side, `${value}px`])
++      )}
++    >
+       <button
+         ref={buttonRef}
+         class={cn(
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/config.ts widget/config.ts
 --- widget.orig/config.ts	2026-10-31 19:14:41
-+++ widget/config.ts	2026-10-31 19:25:16
-@@ -60,6 +60,10 @@
++++ widget/config.ts	2026-10-31 21:00:17
+@@ -60,6 +60,12 @@
    userActivityCapture: UserActivityCapturePolicy;
    captureMethod: 'visible' | 'fullpage' | 'element';
    useScreenCaptureAPI: boolean;
@@ -452,6 +495,8 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/confi
 +  captureOnOpen?: boolean;
 +  /** Pixel ratio of screenshots; unset uses the device's (up to 2). 1 is about four times faster on HiDPI screens. */
 +  capturePixelRatio?: number;
++  /** Launcher distance from its corner in px (e.g. { bottom: 88 }), overriding the 20px of `position`. */
++  launcherOffset?: { top?: number; right?: number; bottom?: number; left?: number };
    maxScreenshotSize: number;
    maxImageUploadSize: number;
    maxVideoUploadSize: number;
