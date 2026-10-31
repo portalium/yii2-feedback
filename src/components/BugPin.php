@@ -62,9 +62,12 @@ class BugPin
             'serverUrl' => $app->request->hostInfo,
             'captureOnOpen' => true,
             'capturePixelRatio' => 1,
+            'launcherStyle' => 'tab',
+            'language' => $app->language,
         ];
         $module = $app->getModule('feedback');
         if ($module instanceof Module) {
+            $settings['launcherStyle'] = $module->launcher;
             $settings['position'] = $module->position;
             if ($module->launcherOffset) {
                 $settings['launcherOffset'] = $module->launcherOffset;
@@ -89,7 +92,8 @@ class BugPin
 
     /**
      * The widget copies every launcher/dialog field of this answer over its own defaults, a missing one included
-     * (it becomes undefined and the launcher fails to render), so all of them are sent with the widget's defaults.
+     * (it becomes undefined and the launcher fails to render), so all of them are sent. Colors follow the Suite's
+     * btn-success.
      */
     public static function widgetConfig(): array
     {
@@ -104,30 +108,30 @@ class BugPin
             'buttonIcon' => 'bug',
             'buttonIconSize' => 18,
             'buttonIconStroke' => 2,
-            'lightButtonColor' => '#02658D',
+            'lightButtonColor' => '#198754',
             'lightTextColor' => '#ffffff',
-            'lightButtonHoverColor' => '#024F6F',
+            'lightButtonHoverColor' => '#157347',
             'lightTextHoverColor' => '#ffffff',
-            'darkButtonColor' => '#02658D',
+            'darkButtonColor' => '#198754',
             'darkTextColor' => '#ffffff',
-            'darkButtonHoverColor' => '#036F9B',
+            'darkButtonHoverColor' => '#20a467',
             'darkTextHoverColor' => '#ffffff',
-            'dialogLightButtonColor' => '#02658D',
+            'dialogLightButtonColor' => '#198754',
             'dialogLightTextColor' => '#ffffff',
-            'dialogLightButtonHoverColor' => '#024F6F',
+            'dialogLightButtonHoverColor' => '#157347',
             'dialogLightTextHoverColor' => '#ffffff',
             'dialogLightBackgroundColor' => '#ffffff',
             'dialogLightSecondaryColor' => '#f5f5f5',
             'dialogLightInputColor' => '#ffffff',
-            'dialogLightForegroundColor' => '#0a0a0a',
-            'dialogDarkButtonColor' => '#02658D',
+            'dialogLightForegroundColor' => '#212529',
+            'dialogDarkButtonColor' => '#198754',
             'dialogDarkTextColor' => '#ffffff',
-            'dialogDarkButtonHoverColor' => '#036F9B',
+            'dialogDarkButtonHoverColor' => '#20a467',
             'dialogDarkTextHoverColor' => '#ffffff',
-            'dialogDarkBackgroundColor' => '#0a0a0a',
-            'dialogDarkSecondaryColor' => '#262626',
-            'dialogDarkInputColor' => '#1a1a1a',
-            'dialogDarkForegroundColor' => '#fafafa',
+            'dialogDarkBackgroundColor' => '#1b211d',
+            'dialogDarkSecondaryColor' => '#232a25',
+            'dialogDarkInputColor' => '#151a17',
+            'dialogDarkForegroundColor' => '#e9ecef',
             'enableHoverScaleEffect' => true,
             'tooltipEnabled' => false,
             'tooltipText' => $text,

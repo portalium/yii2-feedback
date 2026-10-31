@@ -34,6 +34,8 @@ class BugPinTest extends BugPinTestCase
         $this->assertStringNotContainsString('reporterName', $head);
         $this->assertStringContainsString('"captureOnOpen":true', $head);
         $this->assertStringContainsString('"capturePixelRatio":1', $head);
+        $this->assertStringContainsString('"launcherStyle":"tab"', $head);
+        $this->assertStringContainsString('"language":"', $head);
         $this->assertArrayHasKey(BugPinAsset::class, $view->assetBundles);
     }
 
@@ -42,12 +44,14 @@ class BugPinTest extends BugPinTestCase
         $this->boot(self::KEY, '', true);
         Yii::$app->setModule('feedback', [
             'class' => \portalium\feedback\Module::class,
+            'launcher' => 'button',
             'position' => 'bottom-right',
             'launcherOffset' => ['right' => 28, 'bottom' => 88],
         ]);
 
         $head = implode("\n", $this->render()->js[View::POS_HEAD] ?? []);
 
+        $this->assertStringContainsString('"launcherStyle":"button"', $head);
         $this->assertStringContainsString('"position":"bottom-right"', $head);
         $this->assertStringContainsString('"launcherOffset":{"right":28,"bottom":88}', $head);
     }

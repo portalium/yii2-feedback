@@ -1,7 +1,183 @@
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/annotate/AnnotationCanvas.tsx widget/annotate/AnnotationCanvas.tsx
---- widget.orig/annotate/AnnotationCanvas.tsx	2026-10-31 19:14:41
-+++ widget/annotate/AnnotationCanvas.tsx	2026-10-31 21:21:27
-@@ -1164,7 +1164,7 @@
+diff --color -ruN a/shared/types.ts b/shared/types.ts
+--- a/shared/types.ts	2026-10-31 21:58:44
++++ b/shared/types.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ // Locale Types
+ 
+-export type LocaleCode = 'en' | 'de' | 'fr' | 'nl' | 'es' | 'it' | 'ja' | 'zh';
++export type LocaleCode = 'en' | 'de' | 'fr' | 'nl' | 'es' | 'it' | 'ja' | 'zh' | 'tr';
+ 
+ export const SUPPORTED_LOCALES: readonly LocaleCode[] = [
+   'en',
+@@ -11,6 +11,7 @@
+   'it',
+   'ja',
+   'zh',
++  'tr',
+ ] as const;
+ 
+ export type LocalizedString = Partial<Record<LocaleCode, string>> & { en: string };
+diff --color -ruN a/widget/annotate/AnnotationCanvas.tsx b/widget/annotate/AnnotationCanvas.tsx
+--- a/widget/annotate/AnnotationCanvas.tsx	2026-10-31 21:58:44
++++ b/widget/annotate/AnnotationCanvas.tsx	2026-10-31 21:55:49
+@@ -17,6 +17,8 @@
+   ZoomOut,
+   Maximize,
+   ZoomIn,
++  X,
++  Check,
+ } from 'lucide-preact';
+ import { cn } from '../lib/utils';
+ import { Button } from '../components/ui';
+@@ -66,6 +68,8 @@
+   screenshot: string;
+   onSave: (annotatedImage: string, annotations: object) => void;
+   onCancel: () => void;
++  /** Full screen over the page with a vertical toolbar, instead of the toolbar-and-buttons dialog layout. */
++  overlay?: boolean;
+ }
+ 
+ const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#000000'];
+@@ -185,12 +189,14 @@
+   screenshot,
+   onSave,
+   onCancel,
++  overlay = false,
+ }) => {
+   useLocale();
++  const [colorsOpen, setColorsOpen] = useState(false);
+   const canvasRef = useRef<HTMLCanvasElement>(null);
+   const canvasWrapperRef = useRef<HTMLDivElement>(null);
+   const fabricRef = useRef<fabric.Canvas | null>(null);
+-  const [activeTool, setActiveTool] = useState<AnnotationTool>('select');
++  const [activeTool, setActiveTool] = useState<AnnotationTool>(overlay ? 'pen' : 'select');
+   const [activeColor, setActiveColor] = useState('#ef4444');
+   const [strokeWidth, setStrokeWidth] = useState(4);
+   const [canUndo, setCanUndo] = useState(false);
+@@ -225,8 +231,9 @@
+       // Scale image to fit container while maintaining aspect ratio
+       // Get actual available space from the canvas wrapper element
+       const wrapperRect = canvasWrapperRef.current?.getBoundingClientRect();
+-      const maxWidth = wrapperRect ? wrapperRect.width - 32 : 800; // 32px for padding
+-      const maxHeight = wrapperRect ? wrapperRect.height - 32 : 600;
++      const padding = overlay ? 0 : 32;
++      const maxWidth = wrapperRect ? wrapperRect.width - padding : 800;
++      const maxHeight = wrapperRect ? wrapperRect.height - padding : 600;
+ 
+       const scale = Math.min(maxWidth / (img.width || 800), maxHeight / (img.height || 600));
+ 
+@@ -1031,6 +1038,110 @@
+     </button>
+   );
+ 
++  if (overlay) {
++    const roundButton =
++      'flex items-center justify-center w-10 h-10 border-none rounded-full bg-transparent text-white cursor-pointer transition-colors hover:bg-white/15 disabled:opacity-40 disabled:cursor-not-allowed [&_svg]:w-5 [&_svg]:h-5';
++    const OverlayTool = ({ tool, icon, label }: { tool: AnnotationTool; icon: JSX.Element; label: string }) => (
++      <button
++        type="button"
++        class={cn(roundButton, activeTool === tool && 'bg-[var(--button-color)] hover:bg-[var(--button-color)]')}
++        onClick={() => setActiveTool(tool)}
++        title={label}
++        aria-label={label}
++        aria-pressed={activeTool === tool}
++      >
++        {icon}
++      </button>
++    );
++
++    return (
++      <div class="fixed inset-0 bg-black">
++        <div class="absolute inset-0 flex items-center justify-center" ref={canvasWrapperRef}>
++          <canvas ref={canvasRef} />
++        </div>
++        <div class="pointer-events-none absolute inset-0 border-[3px] border-solid border-[var(--button-color)]" />
++
++        <div class="absolute right-3 bottom-3 flex flex-col items-center gap-1 p-1.5 rounded-full bg-neutral-800/95 shadow-2xl">
++          <button
++            type="button"
++            class={roundButton}
++            onClick={onCancel}
++            title={t('annotation.buttons.close')}
++            aria-label={t('annotation.buttons.close')}
++          >
++            <X />
++          </button>
++          <button
++            type="button"
++            class={cn(roundButton, 'bg-red-500/90 hover:bg-red-500')}
++            onClick={deleteSelected}
++            title={t('annotation.toolbar.delete')}
++            aria-label={t('annotation.toolbar.delete')}
++          >
++            <Trash2 />
++          </button>
++          <button
++            type="button"
++            class={roundButton}
++            onClick={undo}
++            disabled={!canUndo}
++            title={t('annotation.toolbar.undo')}
++            aria-label={t('annotation.toolbar.undo')}
++          >
++            <Undo2 />
++          </button>
++          <OverlayTool tool="pen" label={t('annotation.toolbar.pen')} icon={<Pencil />} />
++          <OverlayTool tool="arrow" label={t('annotation.toolbar.arrow')} icon={<MoveUpRight />} />
++          <OverlayTool tool="rectangle" label={t('annotation.toolbar.rectangle')} icon={<Square />} />
++          <OverlayTool tool="text" label={t('annotation.toolbar.text')} icon={<Type />} />
++          <OverlayTool tool="pixelate" label={t('annotation.toolbar.pixelate')} icon={<HatGlasses />} />
++          <div class="relative">
++            <button
++              type="button"
++              class={roundButton}
++              onClick={() => setColorsOpen(!colorsOpen)}
++              title={t('annotation.toolbar.color')}
++              aria-label={t('annotation.toolbar.color')}
++              aria-expanded={colorsOpen}
++            >
++              <span class="block w-5 h-5 rounded-full ring-2 ring-white" style={{ backgroundColor: activeColor }} />
++            </button>
++            {colorsOpen && (
++              <div class="absolute right-full top-1/2 [transform:translateY(-50%)] mr-2 flex gap-1.5 p-2 rounded-full bg-neutral-800/95 shadow-2xl">
++                {COLORS.map((color) => (
++                  <button
++                    key={color}
++                    type="button"
++                    class={cn(
++                      'w-7 h-7 p-0 border-none rounded-full cursor-pointer',
++                      activeColor === color && 'ring-2 ring-white ring-offset-2 ring-offset-neutral-800'
++                    )}
++                    style={{ backgroundColor: color }}
++                    title={color}
++                    aria-label={color}
++                    onClick={() => {
++                      setActiveColor(color);
++                      setColorsOpen(false);
++                    }}
++                  />
++                ))}
++              </div>
++            )}
++          </div>
++          <button
++            type="button"
++            class={cn(roundButton, 'w-12 h-12 mt-1 bg-green-600 hover:bg-green-500 [&_svg]:w-6 [&_svg]:h-6')}
++            onClick={handleSave}
++            title={t('annotation.buttons.done')}
++            aria-label={t('annotation.buttons.done')}
++          >
++            <Check />
++          </button>
++        </div>
++      </div>
++    );
++  }
++
+   return (
+     <div class="h-full min-h-0 flex flex-col">
+       {/* Toolbar */}
+@@ -1164,7 +1275,7 @@
  
        {/* Canvas */}
        <div
@@ -10,9 +186,9 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/annot
          ref={canvasWrapperRef}
        >
          <canvas ref={canvasRef} />
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/api/submit.ts widget/api/submit.ts
---- widget.orig/api/submit.ts	2026-10-31 19:14:41
-+++ widget/api/submit.ts	2026-10-31 19:14:41
+diff --color -ruN a/widget/api/submit.ts b/widget/api/submit.ts
+--- a/widget/api/submit.ts	2026-10-31 21:58:44
++++ b/widget/api/submit.ts	2026-10-31 19:14:41
 @@ -121,7 +121,7 @@
          `[BugPin] Media ${i}: dataUrl length=${item.dataUrl.length}, blob size=${blob.size}, type=${blob.type}`
        );
@@ -22,9 +198,9 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/api/s
      }
    }
  
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/capture/screenshot.ts widget/capture/screenshot.ts
---- widget.orig/capture/screenshot.ts	2026-10-31 19:14:41
-+++ widget/capture/screenshot.ts	2026-10-31 21:37:28
+diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
+--- a/widget/capture/screenshot.ts	2026-10-31 21:58:44
++++ b/widget/capture/screenshot.ts	2026-10-31 21:37:28
 @@ -1,5 +1,5 @@
 -import { toCanvas } from 'html-to-image';
 -import { withCaptureClone } from './capture-clone';
@@ -376,18 +552,31 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
        cacheBust: cacheBust ?? false, // Default off for element mode
        pixelRatio: dpr,
        backgroundColor: bgColor,
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/App.tsx widget/components/App.tsx
---- widget.orig/components/App.tsx	2026-10-31 19:14:41
-+++ widget/components/App.tsx	2026-10-31 21:31:34
-@@ -13,6 +13,7 @@
+diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
+--- a/widget/components/App.tsx	2026-10-31 21:58:44
++++ b/widget/components/App.tsx	2026-10-31 21:52:23
+@@ -2,6 +2,9 @@
+ import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
+ import { WidgetConfig } from '../config.js';
+ import { WidgetLauncherButton } from './WidgetLauncherButton.js';
++import { FeedbackTab } from './FeedbackTab.js';
++import { FeedbackMenu } from './FeedbackMenu.js';
++import { FeedbackForm } from './FeedbackForm.js';
+ import { WidgetDialog, FormData } from './WidgetDialog.js';
+ import { Toast, ToastType } from './ui';
+ import { AnnotationCanvas } from '../annotate/AnnotationCanvas.js';
+@@ -13,8 +16,9 @@
  import { useEffectiveTheme } from '../hooks/use-effective-theme.js';
  import { useLocale } from '../hooks/use-locale.js';
  import { getLocale, t } from '../i18n/index.js';
 +import { isLauncherHidden } from '../launcher-state.js';
  
- type WidgetStep = 'closed' | 'form' | 'annotating';
+-type WidgetStep = 'closed' | 'form' | 'annotating';
++type WidgetStep = 'closed' | 'menu' | 'form' | 'annotating';
  
-@@ -136,6 +137,9 @@
+ const INITIAL_FORM_DATA: FormData = {
+   title: '',
+@@ -136,6 +140,9 @@
      setStep('form');
    }, []);
  
@@ -397,7 +586,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
    // Check if there's any content in the form
    const hasContent =
      formData.title.trim() ||
-@@ -239,7 +243,7 @@
+@@ -239,7 +246,7 @@
        const dataUrl = await captureScreenshotFn({
          method: config.captureMethod,
          useScreenCaptureAPI: config.useScreenCaptureAPI,
@@ -406,7 +595,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
        });
  
        // Reject oversized captures up-front instead of letting the server drop
-@@ -251,6 +255,7 @@
+@@ -251,6 +258,7 @@
          const sizeMb = Math.round((blob.size / (1024 * 1024)) * 10) / 10;
          const limitMb = Math.round(config.maxScreenshotSize / (1024 * 1024));
          setOversizedCapture({ sizeMb, limitMb });
@@ -414,7 +603,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
          setIsCapturing(false);
          setActiveTab('media');
          setStep('form');
-@@ -280,6 +285,13 @@
+@@ -280,6 +288,13 @@
  
          setMedia((prev) => [...prev, newMedia]);
          setIsCapturing(false);
@@ -428,7 +617,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
          setActiveTab('media'); // Stay on media tab after capture
          setStep('form');
        };
-@@ -296,6 +308,13 @@
+@@ -296,6 +311,13 @@
  
          setMedia((prev) => [...prev, newMedia]);
          setIsCapturing(false);
@@ -442,7 +631,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
          setActiveTab('media'); // Stay on media tab after capture
          setStep('form');
        };
-@@ -303,6 +322,7 @@
+@@ -303,6 +325,7 @@
        img.src = dataUrl;
      } catch (error) {
        console.error('[BugPin] Failed to capture screenshot:', error);
@@ -450,7 +639,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
        setIsCapturing(false);
        setStep('form');
        setToast({
-@@ -312,6 +332,38 @@
+@@ -312,6 +335,38 @@
      }
    }, [config, captureScreenshotFn, showScreenCaptureConsent, reduceScreenshotQuality]);
  
@@ -489,7 +678,39 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
    const handleConsentConfirm = useCallback(() => {
      handleCaptureScreenshot();
    }, [handleCaptureScreenshot]);
-@@ -420,27 +472,31 @@
+@@ -413,6 +468,31 @@
+     setToast(null);
+   }, []);
+ 
++  // 'tab' style: tab → choice → in-page annotation → short form
++  const tabStyle = config.launcherStyle === 'tab';
++
++  const handleTabClick = useCallback(() => {
++    setStep((current) => (current === 'menu' ? 'closed' : 'menu'));
++  }, []);
++
++  const handleMenuAnnotate = useCallback(() => {
++    annotateNextCapture.current = true;
++    handleCaptureScreenshot();
++  }, [handleCaptureScreenshot]);
++
++  const handleEditScreenshot = useCallback(() => {
++    if (media[0]) {
++      setAnnotatingMediaId(media[0].id);
++      setStep('annotating');
++    }
++  }, [media]);
++
++  const handleShortSubmit = useCallback(() => {
++    const comment = formData.description.trim();
++    const title = (comment.split('\n')[0].trim() || t('form.defaultTitle')).slice(0, 80);
++    handleSubmit({ ...formData, title }, media);
++  }, [formData, media, handleSubmit]);
++
+   // Get the media item being annotated
+   const annotatingMedia = annotatingMediaId
+     ? media.find((item) => item.id === annotatingMediaId)
+@@ -420,29 +500,65 @@
  
    return (
      <div ref={containerRef} class={`bugpin-container bugpin-theme-${effectiveTheme}`}>
@@ -514,8 +735,30 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
 -        tooltipText={config.tooltipText}
 -        onClick={handleOpenWidget}
 -      />
++      {tabStyle && (step === 'closed' || step === 'menu') && !launcherHidden && (
++        <FeedbackTab
++          theme={config.theme}
++          lightColor={config.lightButtonColor}
++          lightTextColor={config.lightTextColor}
++          darkColor={config.darkButtonColor}
++          darkTextColor={config.darkTextColor}
++          expanded={step === 'menu'}
++          onClick={handleTabClick}
++        />
++      )}
+ 
+-      {step === 'annotating' && annotatingMedia && (
++      {tabStyle && step === 'menu' && (
++        <FeedbackMenu
++          canAnnotate={config.enableScreenshot}
++          onAnnotate={handleMenuAnnotate}
++          onGeneral={() => setStep('form')}
++          onClose={() => setStep('closed')}
++        />
++      )}
++
 +      {/* Hidden while the editor or the form is open: on small screens it covered their buttons. */}
-+      {step === 'closed' && !launcherHidden && (
++      {!tabStyle && step === 'closed' && !launcherHidden && (
 +        <WidgetLauncherButton
 +          position={config.position}
 +          offset={config.launcherOffset}
@@ -539,12 +782,353 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
 +          onClick={handleLauncherClick}
 +        />
 +      )}
- 
-       {step === 'annotating' && annotatingMedia && (
++
++      {tabStyle && step === 'annotating' && annotatingMedia && (
++        <div class="fixed inset-0 z-[2147483646]">
++          <AnnotationCanvasComponent
++            overlay
++            screenshot={annotatingMedia.dataUrl}
++            onSave={handleAnnotationSave}
++            onCancel={handleAnnotationCancel}
++          />
++        </div>
++      )}
++
++      {!tabStyle && step === 'annotating' && annotatingMedia && (
          <div class="fixed inset-0 z-[2147483646] bg-black/50 flex items-center justify-center p-5 animate-[fadeIn_0.2s_ease-out]">
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/WidgetLauncherButton.tsx widget/components/WidgetLauncherButton.tsx
---- widget.orig/components/WidgetLauncherButton.tsx	2026-10-31 19:14:41
-+++ widget/components/WidgetLauncherButton.tsx	2026-10-31 21:00:17
+           <div class="relative w-full max-w-4xl h-[770px] max-h-[calc(100vh-40px)] min-h-0 bg-background border border-solid border-border rounded shadow-lg overflow-hidden flex flex-col animate-[slideUp_0.2s_ease-out]">
+             <AnnotationCanvasComponent
+@@ -454,7 +570,23 @@
+         </div>
+       )}
+ 
+-      {step === 'form' && (
++      {tabStyle && step === 'form' && (
++        <FeedbackForm
++          formData={formData}
++          onFormDataChange={setFormData}
++          hasScreenshot={media.length > 0}
++          canAnnotate={config.enableScreenshot}
++          isSubmitting={isSubmitting}
++          isCapturing={isCapturing}
++          onEditScreenshot={handleEditScreenshot}
++          onAddScreenshot={handleMenuAnnotate}
++          onRemoveScreenshot={() => setMedia([])}
++          onSubmit={handleShortSubmit}
++          onClose={handleRequestClose}
++        />
++      )}
++
++      {!tabStyle && step === 'form' && (
+         <WidgetDialogComponent
+           hidePoweredBy={config.hidePoweredBy}
+           onClose={handleRequestClose}
+diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/FeedbackForm.tsx
+--- a/widget/components/FeedbackForm.tsx	1970-01-01 02:00:00
++++ b/widget/components/FeedbackForm.tsx	2026-10-31 21:51:15
+@@ -0,0 +1,128 @@
++import { FunctionComponent } from 'preact';
++import { useState } from 'preact/hooks';
++import { Camera, CircleCheck } from 'lucide-preact';
++import { useLocale } from '../hooks/use-locale.js';
++import { t } from '../i18n/index.js';
++import { Button, Input, Textarea } from './ui';
++import { FeedbackPanel } from './FeedbackPanel.js';
++import type { FormData } from './WidgetDialog.js';
++
++interface FeedbackFormProps {
++  formData: FormData;
++  onFormDataChange: (data: FormData) => void;
++  hasScreenshot: boolean;
++  canAnnotate: boolean;
++  isSubmitting: boolean;
++  isCapturing: boolean;
++  onEditScreenshot: () => void;
++  onAddScreenshot: () => void;
++  onRemoveScreenshot: () => void;
++  onSubmit: () => void;
++  onClose: () => void;
++}
++
++const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
++
++/**
++ * Last step of the 'tab' style: one comment field, the screenshot (edit or add), an optional email.
++ */
++export const FeedbackForm: FunctionComponent<FeedbackFormProps> = ({
++  formData,
++  onFormDataChange,
++  hasScreenshot,
++  canAnnotate,
++  isSubmitting,
++  isCapturing,
++  onEditScreenshot,
++  onAddScreenshot,
++  onRemoveScreenshot,
++  onSubmit,
++  onClose,
++}) => {
++  useLocale();
++  const [errors, setErrors] = useState<{ comment?: string; email?: string }>({});
++
++  const submit = (event: Event) => {
++    event.preventDefault();
++    const next: typeof errors = {};
++    if (formData.description.trim().length < 3) next.comment = t('form.comment.required');
++    if (formData.reporterEmail.trim() !== '' && !EMAIL.test(formData.reporterEmail.trim())) {
++      next.email = t('validation.email.invalid');
++    }
++    setErrors(next);
++    if (!next.comment && !next.email) onSubmit();
++  };
++
++  return (
++    <FeedbackPanel title={t('menu.title')} onClose={onClose} tall>
++      <form class="flex flex-col gap-4" onSubmit={submit} noValidate>
++        <div>
++          <Textarea
++            class="min-h-32 text-base"
++            placeholder={t('form.comment.placeholder')}
++            value={formData.description}
++            error={!!errors.comment}
++            autoFocus
++            onInput={(event) =>
++              onFormDataChange({ ...formData, description: (event.target as HTMLTextAreaElement).value })
++            }
++          />
++          {errors.comment && <p class="mt-1 mb-0 text-sm text-destructive">{errors.comment}</p>}
++        </div>
++
++        {hasScreenshot ? (
++          <div class="flex items-center gap-3 text-base font-semibold">
++            <button
++              type="button"
++              class="flex items-center gap-2 p-0 border-none bg-transparent text-[var(--button-color)] cursor-pointer [&_svg]:w-6 [&_svg]:h-6"
++              onClick={onEditScreenshot}
++            >
++              <span class="relative">
++                <Camera />
++                <CircleCheck class="absolute -right-1.5 -bottom-1 !w-3.5 !h-3.5 text-green-600 bg-background rounded-full" />
++              </span>
++              {t('form.screenshot.edit')}
++            </button>
++            <button
++              type="button"
++              class="ml-auto p-0 border-none bg-transparent text-sm font-normal text-muted-foreground cursor-pointer hover:underline"
++              onClick={onRemoveScreenshot}
++            >
++              {t('form.screenshot.remove')}
++            </button>
++          </div>
++        ) : (
++          canAnnotate && (
++            <button
++              type="button"
++              class="flex items-center gap-2 p-0 border-none bg-transparent text-base font-semibold text-[var(--button-color)] cursor-pointer disabled:opacity-50 [&_svg]:w-6 [&_svg]:h-6"
++              disabled={isCapturing}
++              onClick={onAddScreenshot}
++            >
++              <Camera />
++              {t('form.screenshot.add')}
++            </button>
++          )
++        )}
++
++        <div>
++          <Input
++            type="email"
++            class="text-base"
++            placeholder={t('form.email.placeholder')}
++            value={formData.reporterEmail}
++            error={!!errors.email}
++            onInput={(event) =>
++              onFormDataChange({ ...formData, reporterEmail: (event.target as HTMLInputElement).value })
++            }
++          />
++          {errors.email && <p class="mt-1 mb-0 text-sm text-destructive">{errors.email}</p>}
++        </div>
++
++        <Button type="submit" class="w-full h-12 text-base font-semibold rounded-lg" disabled={isSubmitting}>
++          {isSubmitting ? t('form.sending') : t('form.submit')}
++        </Button>
++      </form>
++    </FeedbackPanel>
++  );
++};
+diff --color -ruN a/widget/components/FeedbackMenu.tsx b/widget/components/FeedbackMenu.tsx
+--- a/widget/components/FeedbackMenu.tsx	1970-01-01 02:00:00
++++ b/widget/components/FeedbackMenu.tsx	2026-10-31 21:51:02
+@@ -0,0 +1,45 @@
++import { FunctionComponent, JSX } from 'preact';
++import { Camera, MessageSquareText } from 'lucide-preact';
++import { useLocale } from '../hooks/use-locale.js';
++import { t } from '../i18n/index.js';
++import { FeedbackPanel } from './FeedbackPanel.js';
++
++interface FeedbackMenuProps {
++  canAnnotate: boolean;
++  onAnnotate: () => void;
++  onGeneral: () => void;
++  onClose: () => void;
++}
++
++const Choice = ({ icon, label, onClick }: { icon: JSX.Element; label: string; onClick: () => void }) => (
++  <button
++    type="button"
++    class="flex w-full items-center gap-4 px-4 py-4 rounded-xl border border-solid border-border bg-transparent text-left text-base font-semibold text-[var(--button-color)] cursor-pointer transition-colors hover:bg-foreground/5 [&_svg]:w-7 [&_svg]:h-7 [&_svg]:shrink-0"
++    onClick={onClick}
++  >
++    {icon}
++    <span>{label}</span>
++  </button>
++);
++
++/**
++ * First step of the 'tab' style: mark a spot on the page (screenshot + annotation) or write general feedback.
++ */
++export const FeedbackMenu: FunctionComponent<FeedbackMenuProps> = ({
++  canAnnotate,
++  onAnnotate,
++  onGeneral,
++  onClose,
++}) => {
++  useLocale();
++
++  return (
++    <FeedbackPanel title={t('menu.title')} onClose={onClose}>
++      <p class="mt-0 mb-5 text-base text-muted-foreground">{t('menu.intro')}</p>
++      <div class="flex flex-col gap-3">
++        {canAnnotate && <Choice icon={<Camera />} label={t('menu.annotate')} onClick={onAnnotate} />}
++        <Choice icon={<MessageSquareText />} label={t('menu.general')} onClick={onGeneral} />
++      </div>
++    </FeedbackPanel>
++  );
++};
+diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/FeedbackPanel.tsx
+--- a/widget/components/FeedbackPanel.tsx	1970-01-01 02:00:00
++++ b/widget/components/FeedbackPanel.tsx	2026-10-31 21:55:49
+@@ -0,0 +1,63 @@
++import { ComponentChildren, FunctionComponent } from 'preact';
++import { useEffect } from 'preact/hooks';
++import { X } from 'lucide-preact';
++import { t } from '../i18n/index.js';
++
++interface FeedbackPanelProps {
++  title: string;
++  onClose: () => void;
++  /** Fills the phone screen (the form) instead of sitting at the bottom (the choice). */
++  tall?: boolean;
++  children: ComponentChildren;
++}
++
++/**
++ * Shell of the 'tab' style panels: a bottom sheet on phones, a card next to the tab on wider screens.
++ */
++export const FeedbackPanel: FunctionComponent<FeedbackPanelProps> = ({
++  title,
++  onClose,
++  tall,
++  children,
++}) => {
++  useEffect(() => {
++    const onKey = (event: KeyboardEvent) => {
++      if (event.key === 'Escape') onClose();
++    };
++    document.addEventListener('keydown', onKey);
++    return () => document.removeEventListener('keydown', onKey);
++  }, [onClose]);
++
++  return (
++    <div class="fixed inset-0 z-[2147483646]">
++      <div class="absolute inset-0 bg-black/40 sm:bg-transparent" onClick={onClose} />
++      <div
++        role="dialog"
++        aria-modal="true"
++        aria-labelledby="bugpin-panel-title"
++        class={
++          'absolute inset-x-0 bottom-0 flex flex-col bg-background text-foreground shadow-2xl ' +
++          'rounded-t-2xl animate-[slideUp_0.2s_ease-out] overflow-y-auto ' +
++          (tall ? 'top-0 rounded-t-none ' : 'max-h-[90vh] ') +
++          'sm:inset-auto sm:right-14 sm:top-1/2 sm:[transform:translateY(-50%)] sm:w-[360px] sm:max-h-[85vh] sm:rounded-xl ' +
++          'sm:border sm:border-solid sm:border-border'
++        }
++      >
++        <div class="flex items-center justify-between px-5 pt-5 pb-2">
++          <h2 id="bugpin-panel-title" class="m-0 text-xl font-bold">
++            {title}
++          </h2>
++          <button
++            type="button"
++            class="flex items-center justify-center w-8 h-8 border-none rounded-full bg-transparent text-foreground cursor-pointer hover:bg-foreground/10 [&_svg]:w-5 [&_svg]:h-5"
++            aria-label={t('aria.close')}
++            onClick={onClose}
++          >
++            <X />
++          </button>
++        </div>
++        <div class="px-5 pb-5">{children}</div>
++      </div>
++    </div>
++  );
++};
+diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/FeedbackTab.tsx
+--- a/widget/components/FeedbackTab.tsx	1970-01-01 02:00:00
++++ b/widget/components/FeedbackTab.tsx	2026-10-31 21:55:49
+@@ -0,0 +1,51 @@
++import { FunctionComponent } from 'preact';
++import { useEffectiveTheme } from '../hooks/use-effective-theme.js';
++import { useLocale } from '../hooks/use-locale.js';
++import { t } from '../i18n/index.js';
++
++interface FeedbackTabProps {
++  theme: 'auto' | 'light' | 'dark';
++  lightColor: string;
++  lightTextColor: string;
++  darkColor: string;
++  darkTextColor: string;
++  expanded: boolean;
++  onClick: () => void;
++}
++
++// Transforms are plain CSS: Tailwind's translate/rotate utilities rely on @property, which does not work in the
++// widget's shadow root.
++
++/**
++ * Launcher of the 'tab' style: a vertical tab stuck to the middle of the right edge, read from bottom to top.
++ */
++export const FeedbackTab: FunctionComponent<FeedbackTabProps> = ({
++  theme,
++  lightColor,
++  lightTextColor,
++  darkColor,
++  darkTextColor,
++  expanded,
++  onClick,
++}) => {
++  useLocale();
++  const dark = useEffectiveTheme(theme) === 'dark';
++
++  return (
++    <div class="fixed right-0 top-1/2 [transform:translateY(-50%)] z-[2147483645]">
++      <button
++        type="button"
++        class="block border-none cursor-pointer px-2.5 py-4 rounded-r-lg text-sm font-semibold tracking-wide shadow-lg transition-[padding] duration-150 hover:pb-5 [writing-mode:vertical-rl] [transform:rotate(180deg)]"
++        style={{
++          backgroundColor: dark ? darkColor : lightColor,
++          color: dark ? darkTextColor : lightTextColor,
++        }}
++        aria-expanded={expanded}
++        aria-label={t('aria.launcher')}
++        onClick={onClick}
++      >
++        {t('tab.label')}
++      </button>
++    </div>
++  );
++};
+diff --color -ruN a/widget/components/WidgetLauncherButton.tsx b/widget/components/WidgetLauncherButton.tsx
+--- a/widget/components/WidgetLauncherButton.tsx	2026-10-31 21:58:44
++++ b/widget/components/WidgetLauncherButton.tsx	2026-10-31 21:00:17
 @@ -10,6 +10,7 @@
  
  interface WidgetLauncherButtonProps {
@@ -577,10 +1161,10 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
        <button
          ref={buttonRef}
          class={cn(
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/config.ts widget/config.ts
---- widget.orig/config.ts	2026-10-31 19:14:41
-+++ widget/config.ts	2026-10-31 21:00:17
-@@ -60,6 +60,12 @@
+diff --color -ruN a/widget/config.ts b/widget/config.ts
+--- a/widget/config.ts	2026-10-31 21:58:44
++++ b/widget/config.ts	2026-10-31 21:50:39
+@@ -60,6 +60,14 @@
    userActivityCapture: UserActivityCapturePolicy;
    captureMethod: 'visible' | 'fullpage' | 'element';
    useScreenCaptureAPI: boolean;
@@ -590,12 +1174,274 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/confi
 +  capturePixelRatio?: number;
 +  /** Launcher distance from its corner in px (e.g. { bottom: 88 }), overriding the 20px of `position`. */
 +  launcherOffset?: { top?: number; right?: number; bottom?: number; left?: number };
++  /** 'tab': a vertical tab on the right edge that opens a choice panel, in-page annotation and a short form. */
++  launcherStyle?: 'button' | 'tab';
    maxScreenshotSize: number;
    maxImageUploadSize: number;
    maxVideoUploadSize: number;
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/index.ts widget/index.ts
---- widget.orig/index.ts	2026-10-31 19:14:41
-+++ widget/index.ts	2026-10-31 21:31:34
+diff --color -ruN a/widget/i18n/index.ts b/widget/i18n/index.ts
+--- a/widget/i18n/index.ts	2026-10-31 21:58:44
++++ b/widget/i18n/index.ts	2026-10-31 21:50:07
+@@ -8,6 +8,7 @@
+ import it from './locales/it.js';
+ import ja from './locales/ja.js';
+ import zh from './locales/zh.js';
++import tr from './locales/tr.js';
+ import { normalizeLocale } from './normalize.js';
+ import { resolveLiveSwitch } from './detect.js';
+ 
+@@ -23,6 +24,7 @@
+   it,
+   ja,
+   zh,
++  tr,
+ };
+ 
+ const enCatalog: EnCatalog = en;
+diff --color -ruN a/widget/i18n/locales/de.ts b/widget/i18n/locales/de.ts
+--- a/widget/i18n/locales/de.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/de.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ import type { WidgetCatalog } from '../catalog.js';
+ 
+-const de: WidgetCatalog = {
++const de: Partial<WidgetCatalog> = {
+   'tooltip.launcher': 'Bug gefunden?',
+ 
+   'aria.launcher': 'Bug melden',
+diff --color -ruN a/widget/i18n/locales/en.ts b/widget/i18n/locales/en.ts
+--- a/widget/i18n/locales/en.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/en.ts	2026-10-31 21:50:07
+@@ -101,6 +101,23 @@
+   'annotation.defaultText': 'Text',
+   'annotation.buttons.cancel': 'Cancel',
+   'annotation.buttons.done': 'Done',
++  'annotation.toolbar.color': 'Color',
++  'annotation.buttons.close': 'Close',
++
++  'tab.label': 'Feedback',
++  'menu.title': 'Feedback',
++  'menu.intro': 'Found a bug, or have an idea for this page?',
++  'menu.annotate': 'Mark a spot on this page',
++  'menu.general': 'General feedback about this page',
++  'form.comment.placeholder': 'Write a comment or describe the problem.',
++  'form.comment.required': 'Please write a comment',
++  'form.screenshot.edit': 'Edit screenshot',
++  'form.screenshot.add': 'Add a screenshot',
++  'form.screenshot.remove': 'Remove',
++  'form.email.placeholder': 'Your email (optional)',
++  'form.submit': 'Send feedback',
++  'form.sending': 'Sending...',
++  'form.defaultTitle': 'Feedback',
+ } as const satisfies Record<string, string>;
+ 
+ export default en;
+diff --color -ruN a/widget/i18n/locales/es.ts b/widget/i18n/locales/es.ts
+--- a/widget/i18n/locales/es.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/es.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ import type { WidgetCatalog } from '../catalog.js';
+ 
+-const es: WidgetCatalog = {
++const es: Partial<WidgetCatalog> = {
+   'tooltip.launcher': '¿Has encontrado un error?',
+ 
+   'aria.launcher': 'Informar de un error',
+diff --color -ruN a/widget/i18n/locales/fr.ts b/widget/i18n/locales/fr.ts
+--- a/widget/i18n/locales/fr.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/fr.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ import type { WidgetCatalog } from '../catalog.js';
+ 
+-const fr: WidgetCatalog = {
++const fr: Partial<WidgetCatalog> = {
+   'tooltip.launcher': 'Vous avez trouvé un bug ?',
+ 
+   'aria.launcher': 'Signaler un bug',
+diff --color -ruN a/widget/i18n/locales/it.ts b/widget/i18n/locales/it.ts
+--- a/widget/i18n/locales/it.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/it.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ import type { WidgetCatalog } from '../catalog.js';
+ 
+-const it: WidgetCatalog = {
++const it: Partial<WidgetCatalog> = {
+   'tooltip.launcher': 'Hai trovato un bug?',
+ 
+   'aria.launcher': 'Segnala bug',
+diff --color -ruN a/widget/i18n/locales/ja.ts b/widget/i18n/locales/ja.ts
+--- a/widget/i18n/locales/ja.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/ja.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ import type { WidgetCatalog } from '../catalog.js';
+ 
+-const ja: WidgetCatalog = {
++const ja: Partial<WidgetCatalog> = {
+   'tooltip.launcher': 'バグを見つけましたか？',
+ 
+   'aria.launcher': 'バグを報告',
+diff --color -ruN a/widget/i18n/locales/nl.ts b/widget/i18n/locales/nl.ts
+--- a/widget/i18n/locales/nl.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/nl.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ import type { WidgetCatalog } from '../catalog.js';
+ 
+-const nl: WidgetCatalog = {
++const nl: Partial<WidgetCatalog> = {
+   'tooltip.launcher': 'Bug gevonden?',
+ 
+   'aria.launcher': 'Bug melden',
+diff --color -ruN a/widget/i18n/locales/tr.ts b/widget/i18n/locales/tr.ts
+--- a/widget/i18n/locales/tr.ts	1970-01-01 02:00:00
++++ b/widget/i18n/locales/tr.ts	2026-10-31 21:50:30
+@@ -0,0 +1,120 @@
++import type { WidgetCatalog } from '../catalog.js';
++
++const tr: WidgetCatalog = {
++  'tooltip.launcher': 'Hata mı buldunuz?',
++
++  'aria.launcher': 'Hata bildir',
++  'aria.close': 'Kapat',
++
++  'dialog.title': 'Hata bildir',
++  'dialog.tabs.details': 'Ayrıntılar',
++  'dialog.tabs.media': 'Ekran görüntüleri',
++  'dialog.tabs.mediaWithCount': 'Ekran görüntüleri ({count})',
++
++  'dialog.fields.title.label': 'Başlık',
++  'dialog.fields.title.placeholder': 'Sorunun kısa açıklaması',
++  'dialog.fields.description.label': 'Açıklama',
++  'dialog.fields.description.placeholder': 'Adımlar, beklenen davranış vb.',
++  'dialog.fields.priority.label': 'Öncelik',
++  'dialog.fields.name.label': 'Ad (isteğe bağlı)',
++  'dialog.fields.name.placeholder': 'Adınız',
++  'dialog.fields.email.label': 'E-posta (isteğe bağlı)',
++  'dialog.fields.email.placeholder': 'siz@ornek.com',
++
++  'dialog.priority.highest': 'En yüksek',
++  'dialog.priority.high': 'Yüksek',
++  'dialog.priority.medium': 'Orta',
++  'dialog.priority.low': 'Düşük',
++  'dialog.priority.lowest': 'En düşük',
++
++  'dialog.buttons.cancel': 'Vazgeç',
++  'dialog.buttons.submit': 'Gönder',
++
++  'dialog.branding.poweredBy': 'Altyapı:',
++
++  'validation.title.required': 'Başlık gerekli',
++  'validation.title.minLength': 'Başlık en az 4 karakter olmalı',
++  'validation.email.invalid': 'Geçersiz e-posta adresi',
++
++  'closeConfirm.title': 'Taslak saklansın mı?',
++  'closeConfirm.body': 'Kaydedilmemiş değişiklikler var. Sonra devam etmek için taslak olarak saklansın mı?',
++  'closeConfirm.discardButton': 'Sil',
++  'closeConfirm.saveDraftButton': 'Taslağı sakla',
++
++  'screenCapture.title': 'Tarayıcı izni gerekiyor',
++  'screenCapture.body': 'Tarayıcınız ekran paylaşımı için izin isteyecek. Gösterilen adımları izleyin.',
++  'screenCapture.browser.firefox': 'Firefox',
++  'screenCapture.browser.chromeEdge': 'Chrome · Edge',
++  'screenCapture.dontShowAgain': 'Bunu bir daha gösterme',
++  'screenCapture.back': 'Geri',
++  'screenCapture.confirm': 'Ekran görüntüsü al',
++
++  'screenshot.privacyTip': 'İpucu: Göndermeden önce hassas bilgileri işaretleme aracıyla gizleyin.',
++  'screenshot.capturing': 'Alınıyor...',
++  'screenshot.capture': 'Ekran görüntüsü al',
++  'screenshot.quality.label': 'Görüntü kalitesini düşür',
++  'screenshot.quality.activeIndicator': 'Görüntü kalitesi düşürüldü',
++  'screenshot.quality.tooltip': 'Görüntüyü 1x piksel yoğunluğunda alır. Görüntü gönderilemeyecek kadar büyükse kullanın.',
++  'screenshot.dropzone.title': 'Dosyaları buraya sürükleyin',
++  'screenshot.dropzone.subtitle': 'ya da seçmek için tıklayın',
++  'screenshot.addMore': 'Daha fazla ekle',
++  'screenshot.alt': 'Ekran görüntüsü',
++  'screenshot.badge.annotated': 'İşaretlendi',
++  'screenshot.badge.video': 'Video',
++  'screenshot.action.annotate': 'İşaretle',
++  'screenshot.action.download': 'İndir',
++  'screenshot.action.remove': 'Kaldır',
++  'screenshot.helperText':
++    'Desteklenen: PNG, JPG, GIF, WebP (en fazla {imageSize} MB) - MP4, WebM, MOV, AVI (en fazla {videoSize} MB)',
++
++  'screenshot.error.unsupportedImage': 'Desteklenmeyen resim biçimi: {type}',
++  'screenshot.error.imageTooLarge': 'Resim çok büyük. En fazla {size} MB olabilir.',
++  'screenshot.error.unsupportedVideo': 'Desteklenmeyen video biçimi: {type}',
++  'screenshot.error.videoTooLarge': 'Video çok büyük. En fazla {size} MB olabilir.',
++  'screenshot.error.unsupportedFile': 'Desteklenmeyen dosya türü: {type}',
++  'screenshot.error.captureTooLarge': 'Ekran görüntüsü {size} MB (en fazla {limit} MB).',
++  'screenshot.error.captureTooLargeHint': '"Görüntü kalitesini düşür"ü açın ya da pencereyi küçültün.',
++
++  'toast.success.submit': 'Geri bildiriminiz gönderildi, teşekkürler!',
++  'toast.error.submit': 'Gönderilemedi',
++  'toast.error.capture': 'Ekran görüntüsü alınamadı',
++
++  'annotation.toolbar.select': 'Seç',
++  'annotation.toolbar.pan': 'Kaydır (ya da Boşluk tuşunu basılı tutun)',
++  'annotation.toolbar.pen': 'Kalem',
++  'annotation.toolbar.line': 'Çizgi',
++  'annotation.toolbar.arrow': 'Ok',
++  'annotation.toolbar.rectangle': 'Dikdörtgen',
++  'annotation.toolbar.circle': 'Daire',
++  'annotation.toolbar.text': 'Metin',
++  'annotation.toolbar.pixelate': 'Gizle (bulanıklaştır)',
++  'annotation.toolbar.undo': 'Geri al (Ctrl+Z)',
++  'annotation.toolbar.redo': 'Yinele (Ctrl+Shift+Z)',
++  'annotation.toolbar.delete': 'Seçileni sil (Del)',
++  'annotation.toolbar.zoomIn': 'Yakınlaştır',
++  'annotation.toolbar.zoomOut': 'Uzaklaştır',
++  'annotation.toolbar.zoomReset': 'Yakınlaştırmayı sıfırla (%{percent})',
++  'annotation.toolbar.strokeWidth': '{width}px',
++  'annotation.defaultText': 'Metin',
++  'annotation.buttons.cancel': 'Vazgeç',
++  'annotation.buttons.done': 'Tamam',
++  'annotation.toolbar.color': 'Renk',
++  'annotation.buttons.close': 'Kapat',
++
++  'tab.label': 'Geri bildirim',
++  'menu.title': 'Geri bildirim',
++  'menu.intro': 'Bir hata mı buldunuz, ya da bu sayfa için bir öneriniz mi var?',
++  'menu.annotate': 'Sayfada bir yeri işaretle',
++  'menu.general': 'Bu sayfa hakkında genel geri bildirim',
++  'form.comment.placeholder': 'Bir yorum yazın ya da sorunu anlatın.',
++  'form.comment.required': 'Lütfen bir yorum yazın',
++  'form.screenshot.edit': 'Ekran görüntüsünü düzenle',
++  'form.screenshot.add': 'Ekran görüntüsü ekle',
++  'form.screenshot.remove': 'Kaldır',
++  'form.email.placeholder': 'E-posta adresiniz (isteğe bağlı)',
++  'form.submit': 'Gönder',
++  'form.sending': 'Gönderiliyor...',
++  'form.defaultTitle': 'Geri bildirim',
++};
++
++export default tr;
+diff --color -ruN a/widget/i18n/locales/zh.ts b/widget/i18n/locales/zh.ts
+--- a/widget/i18n/locales/zh.ts	2026-10-31 21:58:44
++++ b/widget/i18n/locales/zh.ts	2026-10-31 21:50:07
+@@ -1,6 +1,6 @@
+ import type { WidgetCatalog } from '../catalog.js';
+ 
+-const zh: WidgetCatalog = {
++const zh: Partial<WidgetCatalog> = {
+   'tooltip.launcher': '发现缺陷了？',
+ 
+   'aria.launcher': '报告缺陷',
+diff --color -ruN a/widget/i18n/normalize.ts b/widget/i18n/normalize.ts
+--- a/widget/i18n/normalize.ts	2026-10-31 21:58:44
++++ b/widget/i18n/normalize.ts	2026-10-31 21:56:59
+@@ -28,7 +28,8 @@
+     primary === 'nl' ||
+     primary === 'es' ||
+     primary === 'it' ||
+-    primary === 'ja'
++    primary === 'ja' ||
++    primary === 'tr'
+   ) {
+     return primary;
+   }
+diff --color -ruN a/widget/index.ts b/widget/index.ts
+--- a/widget/index.ts	2026-10-31 21:58:44
++++ b/widget/index.ts	2026-10-31 21:31:34
 @@ -17,6 +17,8 @@
    stopUserActivityCapture,
  } from './capture/context.js';
@@ -646,10 +1492,24 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/index
    close: () => {
      document.dispatchEvent(new CustomEvent('bugpin:close'));
    },
-Only in widget: launcher-state.ts
-diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/storage/report-buffer.ts widget/storage/report-buffer.ts
---- widget.orig/storage/report-buffer.ts	2026-10-31 19:14:41
-+++ widget/storage/report-buffer.ts	2026-10-31 19:14:41
+diff --color -ruN a/widget/launcher-state.ts b/widget/launcher-state.ts
+--- a/widget/launcher-state.ts	1970-01-01 02:00:00
++++ b/widget/launcher-state.ts	2026-10-31 21:31:34
+@@ -0,0 +1,11 @@
++// Whether the page hides the launcher button (BugPin.hideLauncher): set before or after the widget starts.
++let hidden = false;
++
++export function isLauncherHidden(): boolean {
++  return hidden;
++}
++
++export function setLauncherHidden(value: boolean): void {
++  hidden = value;
++  document.dispatchEvent(new CustomEvent('bugpin:launcher', { detail: value }));
++}
+diff --color -ruN a/widget/storage/report-buffer.ts b/widget/storage/report-buffer.ts
+--- a/widget/storage/report-buffer.ts	2026-10-31 21:58:44
++++ b/widget/storage/report-buffer.ts	2026-10-31 19:14:41
 @@ -217,7 +217,7 @@
            getExtensionFromDataUrl(item.dataUrl) || getExtensionFromMimeType(item.mimeType);
          const isVideo = item.mimeType.startsWith('video/');

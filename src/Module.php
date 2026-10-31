@@ -15,7 +15,13 @@ class Module extends \portalium\base\Module
     public static $description = 'Feedback Module';
 
     /**
-     * Corner of the launcher button: bottom-right, bottom-left, top-right or top-left.
+     * Launcher: 'tab' (a vertical tab on the right edge, then a choice, in-page annotation and a short form) or
+     * 'button' (a round button in the corner of $position that opens the classic dialog).
+     */
+    public $launcher = 'tab';
+
+    /**
+     * Corner of the 'button' launcher: bottom-right, bottom-left, top-right or top-left.
      */
     public $position = 'bottom-right';
 

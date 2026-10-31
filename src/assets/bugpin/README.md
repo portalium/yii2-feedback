@@ -3,6 +3,10 @@
 `widget.js` is built from the source of `@arantic/bugpin-widget` 1.1.5 (MIT, see `LICENSE`;
 https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captureOnOpen.patch` applied:
 
+- `launcherStyle: 'tab'`: a vertical tab on the middle of the right edge → a choice panel (mark a spot on the
+  page / general feedback) → the screenshot shown full screen with a vertical toolbar (in-page annotation) → a
+  short form (comment, edit/add screenshot, optional email). Bottom sheet on phones, a card next to the tab on
+  wider screens. The title is the first line of the comment. Turkish catalog (`tr`) added.
 - `captureOnOpen` option: the launcher captures the page at once and opens the annotation editor; after
   saving, the form opens with the screenshot attached. Without the option the widget works as before.
 - The media files are sent as `media[]` instead of `media`, because PHP keeps only the last file of repeated
@@ -21,12 +25,13 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
   CSS variables included, into a 100 MB SVG); the CSS variables are set once on the capture root. On a Suite
   flow page: 7.5 s → 1.8 s, the image differs from the full copy in under 0.06 % of pixels (dark and light).
 
-Rebuild (Node 20.19+):
+Rebuild (Node 20.19+) in a clean folder: Tailwind scans everything under it that git does not ignore, so an old
+`dist/` or a second copy of the sources adds unused CSS and the file no longer matches.
 
 ```bash
-cp -R <bugpin>/src/widget <bugpin>/src/shared build/src/
-cd build/src/widget && patch -p1 < captureOnOpen.patch
-npm install --ignore-scripts && npx vite build   # dist/widget.js
+mkdir build && cp -R <bugpin>/src/widget <bugpin>/src/shared build/
+cd build && patch -p1 < captureOnOpen.patch
+cd widget && npm install --ignore-scripts && npx vite build   # dist/widget.js
 ```
 
 The receiving endpoints live in `controllers/api/WidgetController.php`; `bugpin.js` starts the widget.

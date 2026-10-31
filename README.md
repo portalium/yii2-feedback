@@ -1,8 +1,9 @@
 # portalium/yii2-feedback
 
-In-app bug reports for a Portalium (Yii2) project. Signed-in users get a button; one click captures the page
-and opens an annotation editor (arrows, boxes, pen, text, blur), then a short form. Reports are stored on the
-server and mailed with the screenshot attached.
+In-app bug reports for a Portalium (Yii2) project. Signed-in users get a "Feedback" tab on the right edge. It
+offers two ways: mark a spot on the page (the page is captured and shown full screen to draw on: pen, arrow,
+box, text, blur) or general feedback; then a short form (comment, optional email). Reports are stored on the
+server and mailed with the screenshot attached. Texts follow the application language (Turkish included).
 
 - The widget is [BugPin](https://github.com/aranticlabs/bugpin)'s MIT-licensed widget, built from source with
   `src/assets/bugpin/captureOnOpen.patch` (see `src/assets/bugpin/README.md`). BugPin's own server (AGPL) is not
@@ -22,9 +23,9 @@ composer require portalium/yii2-feedback
    ```php
    'feedback' => ['class' => 'portalium\feedback\Module'],
    ```
-   Web module options: `position` (`bottom-right` default, `bottom-left`, `top-right`, `top-left`) and
-   `launcherOffset` (px from that corner, e.g. `['right' => 32, 'bottom' => 88]` to sit above another floating
-   button; default 20 px).
+   Web module options: `launcher` (`tab` default; `button` = a round corner button with the classic dialog),
+   and for `button`: `position` (`bottom-right` default, `bottom-left`, `top-right`, `top-left`) and
+   `launcherOffset` (px from that corner, e.g. `['bottom' => 88]` to sit above another floating button).
 2. Settings:
    ```bash
    php portalium migrate --migrationPath=@vendor/portalium/yii2-feedback/src/migrations --interactive=0
