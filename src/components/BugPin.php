@@ -56,7 +56,7 @@ class BugPin
         if ($key === null) {
             return null;
         }
-        $identity = $app->user->identity;
+        // The form's name and email fields start empty: the user fills them in only when they want an answer.
         $settings = [
             'apiKey' => $key,
             'serverUrl' => $app->request->hostInfo,
@@ -70,13 +70,6 @@ class BugPin
                 $settings['launcherOffset'] = $module->launcherOffset;
             }
         }
-        if (!empty($identity->username)) {
-            $settings['reporterName'] = (string) $identity->username;
-        }
-        if (!empty($identity->email)) {
-            $settings['reporterEmail'] = (string) $identity->email;
-        }
-
         return $settings;
     }
 

@@ -19,7 +19,10 @@ use yii\web\View;
  */
 class BugPinTest extends BugPinTestCase
 {
-    public function testSignedInUserGetsTheWidgetWithTheirName(): void
+    /**
+     * The signed-in user's name and email are not put into the form; its fields start empty.
+     */
+    public function testSignedInUserGetsTheWidgetWithEmptyReporterFields(): void
     {
         $this->boot(self::KEY, '', true);
 
@@ -27,7 +30,8 @@ class BugPinTest extends BugPinTestCase
 
         $head = implode("\n", $view->js[View::POS_HEAD] ?? []);
         $this->assertStringContainsString('"apiKey":"' . self::KEY . '"', $head);
-        $this->assertStringContainsString('"reporterEmail":"ada@example.com"', $head);
+        $this->assertStringNotContainsString('reporterEmail', $head);
+        $this->assertStringNotContainsString('reporterName', $head);
         $this->assertStringContainsString('"captureOnOpen":true', $head);
         $this->assertStringContainsString('"capturePixelRatio":1', $head);
         $this->assertArrayHasKey(BugPinAsset::class, $view->assetBundles);
