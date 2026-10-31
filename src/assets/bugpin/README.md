@@ -3,10 +3,11 @@
 `widget.js` is built from the source of `@arantic/bugpin-widget` 1.1.5 (MIT, see `LICENSE`;
 https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captureOnOpen.patch` applied:
 
-- `launcherStyle: 'tab'`: a vertical tab on the middle of the right edge → a choice panel (mark a spot on the
-  page / general feedback) → the screenshot shown full screen with a vertical toolbar (in-page annotation) → a
-  short form (comment, edit/add screenshot, optional email). Bottom sheet on phones, a card next to the tab on
-  wider screens. The title is the first line of the comment. Turkish catalog (`tr`) added.
+- `launcherStyle: 'tab'`: a vertical tab on the middle of the right edge → a choice of two cards (show on screen /
+  describe in writing) → the screenshot full screen with a toolbar at the top (tools, colors, undo, delete,
+  Cancel, Continue) → a short form (screenshot preview to edit or remove, kind: bug / idea / question, comment,
+  optional email). Bottom sheet on phones, a card next to the tab on wider screens. The title is the first line
+  of the comment; the kind is sent as `category`. Turkish catalog (`tr`) added.
 - `captureOnOpen` option: the launcher captures the page at once and opens the annotation editor; after
   saving, the form opens with the screenshot attached. Without the option the widget works as before.
 - The media files are sent as `media[]` instead of `media`, because PHP keeps only the last file of repeated

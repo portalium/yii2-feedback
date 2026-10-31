@@ -1,8 +1,9 @@
 # portalium/yii2-feedback
 
 In-app bug reports for a Portalium (Yii2) project. Signed-in users get a "Feedback" tab on the right edge. It
-offers two ways: mark a spot on the page (the page is captured and shown full screen to draw on: pen, arrow,
-box, text, blur) or general feedback; then a short form (comment, optional email). Reports are stored on the
+offers two ways: show it on screen (the page is captured and shown full screen to draw on: pen, arrow, box,
+text, blur) or describe it in writing; then a short form (kind: bug / idea / question, comment, optional email;
+the kind labels the mail subject). Reports are stored on the
 server and mailed with the screenshot attached. Texts follow the application language (Turkish included).
 
 - The widget is [BugPin](https://github.com/aranticlabs/bugpin)'s MIT-licensed widget, built from source with

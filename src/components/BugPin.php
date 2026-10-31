@@ -25,6 +25,12 @@ class BugPin
     public const MAX_DATA_SIZE = 1048576;
     public const RATE_LIMIT = 10;
     public const RATE_WINDOW = 600;
+    /** Kinds of feedback the short form offers, with the label used in the mail. */
+    public const CATEGORIES = [
+        'bug' => 'Bug',
+        'idea' => 'Idea',
+        'question' => 'Question',
+    ];
     public const TYPES = [
         'image/png' => 'png',
         'image/jpeg' => 'jpg',
@@ -191,6 +197,9 @@ class BugPin
         if ($title === '' || mb_strlen($title) > 200) {
             throw new \InvalidArgumentException('Title is required (at most 200 characters)');
         }
+        if (isset($data['category']) && !isset(self::CATEGORIES[$data['category']])) {
+            unset($data['category']);
+        }
         if (count($files) > self::MAX_FILES) {
             throw new \InvalidArgumentException('At most ' . self::MAX_FILES . ' files are accepted');
         }
@@ -243,6 +252,7 @@ class BugPin
         $data = $saved['report'];
         $meta = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
         $lines = [
+            'Type: ' . (self::CATEGORIES[$data['category'] ?? ''] ?? '-'),
             'Title: ' . $data['title'],
             'Priority: ' . ($data['priority'] ?? '-'),
             'Reporter: ' . trim(($data['reporterName'] ?? '') . ' <' . ($data['reporterEmail'] ?? '') . '>'),
@@ -259,7 +269,7 @@ class BugPin
         try {
             $message = $mailer->compose()
                 ->setTo($to)
-                ->setSubject('[Bug report] ' . $data['title'])
+                ->setSubject('[' . (self::CATEGORIES[$data['category'] ?? ''] ?? 'Feedback') . '] ' . $data['title'])
                 ->setTextBody(implode("\n", $lines));
             $from = (string) Yii::$app->setting->getValue('email::address');
             if ($from !== '') {

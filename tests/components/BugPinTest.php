@@ -183,6 +183,25 @@ class BugPinTest extends BugPinTestCase
         $this->assertStringContainsString('media-0.png', $mail);
     }
 
+    /**
+     * The short form sends the kind of feedback (bug, idea, question); it goes into the subject and the body of the
+     * mail. An unknown value is dropped instead of being stored.
+     */
+    public function testCategoryIsKeptAndLabelsTheMail(): void
+    {
+        $this->boot(self::KEY, 'dev@example.com', false);
+        $data = json_decode($this->json(), true);
+        $id = BugPin::save(json_encode(['category' => 'idea'] + $data), []);
+        $odd = BugPin::save(json_encode(['category' => '<script>'] + $data), []);
+
+        $this->assertTrue(BugPin::mail($id));
+        $mail = file_get_contents(glob($this->tmp . '/mail/*.eml')[0]);
+        $this->assertStringContainsString('Subject: [Idea] Button does nothing', $mail);
+        $this->assertStringContainsString('Type: Idea', $mail);
+        $stored = json_decode(file_get_contents(Yii::getAlias(BugPin::$basePath) . "/$odd/report.json"), true);
+        $this->assertArrayNotHasKey('category', $stored['report']);
+    }
+
     public function testNoMailWithoutAddresses(): void
     {
         $this->boot(self::KEY, '', false);
