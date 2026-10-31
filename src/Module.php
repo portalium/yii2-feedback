@@ -1,43 +1,41 @@
 <?php
 
-namespace {{vendor}}\{{package}};
+namespace portalium\feedback;
 
-use portalium\base\Event;
-use {{vendor}}\{{package}}\components\TriggerActions;
+use portalium\feedback\components\BugPin;
+use yii\base\Event;
+use yii\web\View;
 
 class Module extends \portalium\base\Module
 {
-    public static $tablePrefix = '{{package}}_';
-    
-    public static $name = '{{package}}';
+    public static $tablePrefix = 'feedback_';
 
-    public static $description = '{{package}} Module';
+    public static $name = 'feedback';
 
+    public static $description = 'Feedback Module';
+
+    /**
+     * The BugPin widget builds its URLs from the site root, so the endpoints answer on /api/widget/...
+     */
     public $apiRules = [
-        [
-            'class' => 'yii\rest\UrlRule',
-            'controller' => [
-                '{{package}}/default',
-            ]
-        ],
+        ['pattern' => 'widget/config/<key:[A-Za-z0-9_-]+>', 'route' => 'feedback/widget/config', 'verb' => 'GET'],
+        ['pattern' => 'widget/submit', 'route' => 'feedback/widget/submit', 'verb' => 'POST'],
     ];
-    
+
     public static function moduleInit()
     {
-        self::registerTranslation('{{package}}','@{{vendor}}/{{package}}/messages',[
-            '{{package}}' => '{{package}}.php',
+        self::registerTranslation('feedback', __DIR__ . '/messages', [
+            'feedback' => 'feedback.php',
         ]);
     }
 
     public static function t($message, array $params = [])
     {
-        return parent::coreT('{{package}}', $message, $params);
+        return parent::coreT('feedback', $message, $params);
     }
 
-    /* 
-        public function registerEvents()
-        {
-            Event::on($this::className(), UserModule::EVENT_USER_DELETE_BEFORE, [new TriggerActions(), 'onUserDeleteBefore']);
-        } 
-    */
+    public function registerEvents()
+    {
+        Event::on(View::class, View::EVENT_BEGIN_BODY, [BugPin::class, 'onBeginBody']);
+    }
 }
