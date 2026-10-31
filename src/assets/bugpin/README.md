@@ -11,6 +11,10 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
   of the viewport are kept as empty boxes; the inlined font CSS is built once after start and reused;
   `capturePixelRatio` option (Suite passes 1). `launcherOffset` option: launcher distance from its corner in px.
   On a 9,000-node test page: 6.4 s → 1.5 s.
+- Page API: `BugPin.capture()` captures and opens the editor (as the launcher does); `BugPin.hideLauncher()`
+  hides the launcher for pages that open the widget from their own control.
+- Attributes with names XML cannot hold (a stray `."` in a template) are dropped from the clone; one of them made
+  the SVG invalid and the capture failed.
 - Small screens: the annotation area is no longer at least 700 px wide (the image was placed off screen); the
   launcher is hidden while the editor or the form is open.
 - Only the CSS properties in `CAPTURE_STYLE_PROPERTIES` are copied per node (html-to-image copies all ~675,

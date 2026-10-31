@@ -40,6 +40,15 @@ The key is visible in the page source; that is how the widget works. Reports are
 10 minutes (needs the `cache` component), at most 5 files of 10 MB each (PNG, JPEG, WebP, MP4, WebM, checked by
 content).
 
+## Opening it from your own control
+
+```js
+if (window.BugPin && window.BugPinSettings) {   // the widget is on this page
+    BugPin.hideLauncher(true);                   // hide its own button
+    myButton.onclick = () => BugPin.capture();   // capture + annotation editor
+}
+```
+
 ## Endpoints
 
 The widget builds its URLs from the site root, so the API application must answer on `/api/...`:

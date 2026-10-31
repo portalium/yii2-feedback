@@ -24,7 +24,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/api/s
  
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/capture/screenshot.ts widget/capture/screenshot.ts
 --- widget.orig/capture/screenshot.ts	2026-10-31 19:14:41
-+++ widget/capture/screenshot.ts	2026-10-31 20:08:38
++++ widget/capture/screenshot.ts	2026-10-31 21:37:28
 @@ -1,5 +1,5 @@
 -import { toCanvas } from 'html-to-image';
 -import { withCaptureClone } from './capture-clone';
@@ -212,7 +212,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
  // Data attribute used to exclude elements from capture
  const EXCLUDE_ATTRIBUTE = 'data-bugpin-exclude';
  
-@@ -164,9 +336,69 @@
+@@ -164,9 +336,82 @@
  }
  
  /**
@@ -266,6 +266,19 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
   * serialization so its scrollbars match the live page.
   */
 +/**
++ * HTML parsers accept attributes the XML serializer cannot write (a stray `."` in a template becomes attributes
++ * named `.` and `"`); one of them makes the whole SVG invalid and the capture fails, so they are dropped.
++ */
++function dropInvalidAttributes(cloneRoot: CloneRoot): void {
++  const valid = /^[A-Za-z_][A-Za-z0-9_.:-]*$/;
++  for (const element of [cloneRoot, ...Array.from(cloneRoot.querySelectorAll('*'))]) {
++    for (const attribute of Array.from(element.attributes)) {
++      if (!valid.test(attribute.name)) element.removeAttribute(attribute.name);
++    }
++  }
++}
++
++/**
 + * With includeStyleProperties the clone gets no CSS variables, yet rules cloned along with the page (style
 + * elements in the body, SVG) still read them. They inherit, so the capture root carries them for every node.
 + */
@@ -282,19 +295,20 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
  function renderToCanvas(
    element: HTMLElement,
    options: ToCanvasOptions
-@@ -176,7 +408,10 @@
+@@ -176,7 +421,11 @@
    const scrollbars = recordScrollbars(element, rootSizeLocked);
    return withCaptureClone(
      element,
 -    (_svg, cloneRoot) => scrollbars.apply(cloneRoot),
 +    (_svg, cloneRoot) => {
 +      scrollbars.apply(cloneRoot);
++      dropInvalidAttributes(cloneRoot);
 +      if (options.includeStyleProperties) copyCustomProperties(element, cloneRoot);
 +    },
      (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
    );
  }
-@@ -318,6 +553,28 @@
+@@ -318,6 +567,28 @@
    return { skip: false };
  }
  
@@ -323,7 +337,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
  /**
   * Build capture options adapted to the current page. Pages without
   * font-embedding hazards get full font embedding for pixel-perfect screenshots.
-@@ -331,6 +588,7 @@
+@@ -331,6 +602,7 @@
    }
    return {
      skipFonts: result.skip,
@@ -331,7 +345,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
      imagePlaceholder: TRANSPARENT_PIXEL,
      // Prevent html-to-image from rejecting when a cloned <img> fails to render.
      // This handles the case where fetch() succeeds (200) but returns non-image
-@@ -525,12 +783,13 @@
+@@ -525,12 +797,13 @@
        // Capture from origin to the end of the visible viewport
        const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
          ...getCaptureDefaults(),
@@ -346,7 +360,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
        };
  
        const fullCanvas = await renderToCanvas(element, toCanvasOptions);
-@@ -593,6 +852,7 @@
+@@ -593,6 +866,7 @@
  
        const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
          ...getCaptureDefaults(),
@@ -354,7 +368,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
          cacheBust: cacheBust ?? true, // Default on for fullpage (more likely to have stale images)
          pixelRatio: dpr,
          width: fullWidth,
-@@ -612,6 +872,7 @@
+@@ -612,6 +886,7 @@
  
      const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
        ...getCaptureDefaults(),
@@ -364,8 +378,16 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/captu
        backgroundColor: bgColor,
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/components/App.tsx widget/components/App.tsx
 --- widget.orig/components/App.tsx	2026-10-31 19:14:41
-+++ widget/components/App.tsx	2026-10-31 21:21:27
-@@ -136,6 +136,9 @@
++++ widget/components/App.tsx	2026-10-31 21:31:34
+@@ -13,6 +13,7 @@
+ import { useEffectiveTheme } from '../hooks/use-effective-theme.js';
+ import { useLocale } from '../hooks/use-locale.js';
+ import { getLocale, t } from '../i18n/index.js';
++import { isLauncherHidden } from '../launcher-state.js';
+ 
+ type WidgetStep = 'closed' | 'form' | 'annotating';
+ 
+@@ -136,6 +137,9 @@
      setStep('form');
    }, []);
  
@@ -375,7 +397,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
    // Check if there's any content in the form
    const hasContent =
      formData.title.trim() ||
-@@ -239,7 +242,7 @@
+@@ -239,7 +243,7 @@
        const dataUrl = await captureScreenshotFn({
          method: config.captureMethod,
          useScreenCaptureAPI: config.useScreenCaptureAPI,
@@ -384,7 +406,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
        });
  
        // Reject oversized captures up-front instead of letting the server drop
-@@ -251,6 +254,7 @@
+@@ -251,6 +255,7 @@
          const sizeMb = Math.round((blob.size / (1024 * 1024)) * 10) / 10;
          const limitMb = Math.round(config.maxScreenshotSize / (1024 * 1024));
          setOversizedCapture({ sizeMb, limitMb });
@@ -392,7 +414,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
          setIsCapturing(false);
          setActiveTab('media');
          setStep('form');
-@@ -280,6 +284,13 @@
+@@ -280,6 +285,13 @@
  
          setMedia((prev) => [...prev, newMedia]);
          setIsCapturing(false);
@@ -406,7 +428,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
          setActiveTab('media'); // Stay on media tab after capture
          setStep('form');
        };
-@@ -296,6 +307,13 @@
+@@ -296,6 +308,13 @@
  
          setMedia((prev) => [...prev, newMedia]);
          setIsCapturing(false);
@@ -420,7 +442,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
          setActiveTab('media'); // Stay on media tab after capture
          setStep('form');
        };
-@@ -303,6 +321,7 @@
+@@ -303,6 +322,7 @@
        img.src = dataUrl;
      } catch (error) {
        console.error('[BugPin] Failed to capture screenshot:', error);
@@ -428,7 +450,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
        setIsCapturing(false);
        setStep('form');
        setToast({
-@@ -312,6 +331,15 @@
+@@ -312,6 +332,38 @@
      }
    }, [config, captureScreenshotFn, showScreenCaptureConsent, reduceScreenshotQuality]);
  
@@ -441,10 +463,33 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
 +    handleOpenWidget();
 +  }, [config, media.length, handleCaptureScreenshot, handleOpenWidget]);
 +
++  const [launcherHidden, setLauncherHiddenState] = useState(isLauncherHidden);
++
++  // BugPin.capture() and BugPin.hideLauncher() from the page
++  useEffect(() => {
++    const handleCapture = () => {
++      if (step !== 'closed' || isCapturing) return;
++      if (config.enableScreenshot && media.length === 0) {
++        annotateNextCapture.current = true;
++        handleCaptureScreenshot();
++        return;
++      }
++      handleOpenWidget();
++    };
++    const handleLauncher = (event: Event) => setLauncherHiddenState(Boolean((event as CustomEvent).detail));
++
++    document.addEventListener('bugpin:capture', handleCapture);
++    document.addEventListener('bugpin:launcher', handleLauncher);
++    return () => {
++      document.removeEventListener('bugpin:capture', handleCapture);
++      document.removeEventListener('bugpin:launcher', handleLauncher);
++    };
++  }, [step, isCapturing, config.enableScreenshot, media.length, handleCaptureScreenshot, handleOpenWidget]);
++
    const handleConsentConfirm = useCallback(() => {
      handleCaptureScreenshot();
    }, [handleCaptureScreenshot]);
-@@ -420,27 +448,31 @@
+@@ -420,27 +472,31 @@
  
    return (
      <div ref={containerRef} class={`bugpin-container bugpin-theme-${effectiveTheme}`}>
@@ -470,7 +515,7 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/compo
 -        onClick={handleOpenWidget}
 -      />
 +      {/* Hidden while the editor or the form is open: on small screens it covered their buttons. */}
-+      {step === 'closed' && (
++      {step === 'closed' && !launcherHidden && (
 +        <WidgetLauncherButton
 +          position={config.position}
 +          offset={config.launcherOffset}
@@ -550,16 +595,17 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/confi
    maxVideoUploadSize: number;
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/index.ts widget/index.ts
 --- widget.orig/index.ts	2026-10-31 19:14:41
-+++ widget/index.ts	2026-10-31 19:25:16
-@@ -17,6 +17,7 @@
++++ widget/index.ts	2026-10-31 21:31:34
+@@ -17,6 +17,8 @@
    stopUserActivityCapture,
  } from './capture/context.js';
  import { buildWidgetConfigUrl } from './api/config-url.js';
 +import { warmUpFonts } from './capture/screenshot.js';
++import { setLauncherHidden } from './launcher-state.js';
  
  // Widget styles (will be injected into Shadow DOM)
  import styles from './styles/main.css?inline';
-@@ -186,6 +187,10 @@
+@@ -186,6 +188,10 @@
  
    // Render Preact app
    render(h(App, { config }), root);
@@ -570,6 +616,37 @@ diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/index
  }
  
  /**
+@@ -253,6 +259,8 @@
+       ) => Promise<void>;
+       open: () => void;
+       close: () => void;
++      capture: () => void;
++      hideLauncher: (hidden?: boolean) => void;
+       setLanguage: (code: string) => LocaleCode | null;
+       getLanguage: () => LocaleCode;
+     };
+@@ -305,6 +313,20 @@
+   /**
+    * Close the bug report dialog
+    */
++  /**
++   * Capture the page and open the annotation editor, as the launcher does with captureOnOpen
++   */
++  capture: () => {
++    document.dispatchEvent(new CustomEvent('bugpin:capture'));
++  },
++
++  /**
++   * Hide (or show again) the launcher button, for pages that open the widget from their own control
++   */
++  hideLauncher: (hidden = true) => {
++    setLauncherHidden(hidden);
++  },
++
+   close: () => {
+     document.dispatchEvent(new CustomEvent('bugpin:close'));
+   },
+Only in widget: launcher-state.ts
 diff --color -ru -x node_modules -x dist* -x package-lock.json widget.orig/storage/report-buffer.ts widget/storage/report-buffer.ts
 --- widget.orig/storage/report-buffer.ts	2026-10-31 19:14:41
 +++ widget/storage/report-buffer.ts	2026-10-31 19:14:41
