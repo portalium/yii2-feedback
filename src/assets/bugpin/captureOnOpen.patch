@@ -1,6 +1,6 @@
 diff --color -ruN a/shared/types.ts b/shared/types.ts
---- a/shared/types.ts	2026-11-01 00:17:28
-+++ b/shared/types.ts	2026-10-31 21:50:07
+--- a/shared/types.ts	2026-11-03 16:47:52
++++ b/shared/types.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  // Locale Types
  
@@ -18,8 +18,8 @@ diff --color -ruN a/shared/types.ts b/shared/types.ts
  
  export type LocalizedString = Partial<Record<LocaleCode, string>> & { en: string };
 diff --color -ruN a/widget/annotate/AnnotationCanvas.tsx b/widget/annotate/AnnotationCanvas.tsx
---- a/widget/annotate/AnnotationCanvas.tsx	2026-11-01 00:17:28
-+++ b/widget/annotate/AnnotationCanvas.tsx	2026-10-31 23:15:19
+--- a/widget/annotate/AnnotationCanvas.tsx	2026-11-03 16:47:52
++++ b/widget/annotate/AnnotationCanvas.tsx	2026-11-03 15:49:52
 @@ -17,6 +17,7 @@
    ZoomOut,
    Maximize,
@@ -187,8 +187,8 @@ diff --color -ruN a/widget/annotate/AnnotationCanvas.tsx b/widget/annotate/Annot
        >
          <canvas ref={canvasRef} />
 diff --color -ruN a/widget/api/submit.ts b/widget/api/submit.ts
---- a/widget/api/submit.ts	2026-11-01 00:17:28
-+++ b/widget/api/submit.ts	2026-10-31 22:51:04
+--- a/widget/api/submit.ts	2026-11-03 16:47:52
++++ b/widget/api/submit.ts	2026-11-03 15:49:52
 @@ -18,6 +18,8 @@
    title: string;
    description?: string;
@@ -216,8 +216,8 @@ diff --color -ruN a/widget/api/submit.ts b/widget/api/submit.ts
    }
  
 diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
---- a/widget/capture/screenshot.ts	2026-11-01 00:17:28
-+++ b/widget/capture/screenshot.ts	2026-10-31 21:37:28
+--- a/widget/capture/screenshot.ts	2026-11-03 16:47:52
++++ b/widget/capture/screenshot.ts	2026-11-03 16:06:26
 @@ -1,5 +1,5 @@
 -import { toCanvas } from 'html-to-image';
 -import { withCaptureClone } from './capture-clone';
@@ -405,7 +405,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
  // Data attribute used to exclude elements from capture
  const EXCLUDE_ATTRIBUTE = 'data-bugpin-exclude';
  
-@@ -164,9 +336,82 @@
+@@ -164,9 +336,131 @@
  }
  
  /**
@@ -485,23 +485,80 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
 +  }
 +}
 +
++/**
++ * html-to-image downloads every image again to inline it: on a remote server one request per image, full-size
++ * ones included (5-6 s for the first capture of an app list). While a capture runs, a request for an image the
++ * page has already loaded is answered from that image, drawn at twice its shown size. Images the canvas may not
++ * read (cross-origin without CORS) still go to the network.
++ */
++function withLoadedImages<T>(run: () => Promise<T>): Promise<T> {
++  const loaded = new Map<string, HTMLImageElement>();
++  for (const img of Array.from(document.images)) {
++    if (img.complete && img.naturalWidth > 0) {
++      for (const src of [img.src, img.currentSrc]) {
++        if (src && !src.startsWith('data:')) loaded.set(src, img);
++      }
++    }
++  }
++  const original = window.fetch;
++  window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
++    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
++    const img = loaded.get(new URL(url, document.baseURI).href);
++    if (!img) return original.call(window, input, init);
++    return drawImage(img).then((blob) =>
++      blob ? new Response(blob, { headers: { 'Content-Type': blob.type } }) : original.call(window, input, init)
++    );
++  } as typeof window.fetch;
++  return run().finally(() => {
++    window.fetch = original;
++  });
++}
++
++function drawImage(img: HTMLImageElement): Promise<Blob | null> {
++  const shown = img.getBoundingClientRect();
++  const scale = shown.width > 0 ? Math.min(1, (shown.width * 2) / img.naturalWidth) : 1;
++  const canvas = document.createElement('canvas');
++  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
++  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
++  try {
++    canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height);
++    return new Promise((resolve) => {
++      try {
++        canvas.toBlob((blob) => resolve(blob), 'image/webp', 0.92);
++      } catch {
++        resolve(null);
++      }
++    });
++  } catch {
++    return Promise.resolve(null);
++  }
++}
++
  function renderToCanvas(
    element: HTMLElement,
    options: ToCanvasOptions
-@@ -176,7 +421,11 @@
+@@ -174,10 +468,16 @@
+   // html-to-image applies explicit width or height to the root clone itself.
+   const rootSizeLocked = options.width !== undefined || options.height !== undefined;
    const scrollbars = recordScrollbars(element, rootSizeLocked);
-   return withCaptureClone(
-     element,
+-  return withCaptureClone(
+-    element,
 -    (_svg, cloneRoot) => scrollbars.apply(cloneRoot),
-+    (_svg, cloneRoot) => {
-+      scrollbars.apply(cloneRoot);
-+      dropInvalidAttributes(cloneRoot);
-+      if (options.includeStyleProperties) copyCustomProperties(element, cloneRoot);
-+    },
-     (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
+-    (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
++  return withLoadedImages(() =>
++    withCaptureClone(
++      element,
++      (_svg, cloneRoot) => {
++        scrollbars.apply(cloneRoot);
++        dropInvalidAttributes(cloneRoot);
++        if (options.includeStyleProperties) copyCustomProperties(element, cloneRoot);
++      },
++      (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
++    )
    );
  }
-@@ -318,6 +567,28 @@
+ 
+@@ -318,6 +618,28 @@
    return { skip: false };
  }
  
@@ -530,15 +587,17 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
  /**
   * Build capture options adapted to the current page. Pages without
   * font-embedding hazards get full font embedding for pixel-perfect screenshots.
-@@ -331,6 +602,7 @@
+@@ -331,6 +653,9 @@
    }
    return {
      skipFonts: result.skip,
 +    includeStyleProperties: CAPTURE_STYLE_PROPERTIES,
++    // without it html-to-image caches /get-file?id=1 and /get-file?id=2 under one key: later captures repeat one image
++    includeQueryParams: true,
      imagePlaceholder: TRANSPARENT_PIXEL,
      // Prevent html-to-image from rejecting when a cloned <img> fails to render.
      // This handles the case where fetch() succeeds (200) but returns non-image
-@@ -525,12 +797,13 @@
+@@ -525,12 +850,13 @@
        // Capture from origin to the end of the visible viewport
        const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
          ...getCaptureDefaults(),
@@ -553,7 +612,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
        };
  
        const fullCanvas = await renderToCanvas(element, toCanvasOptions);
-@@ -593,6 +866,7 @@
+@@ -593,6 +919,7 @@
  
        const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
          ...getCaptureDefaults(),
@@ -561,7 +620,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
          cacheBust: cacheBust ?? true, // Default on for fullpage (more likely to have stale images)
          pixelRatio: dpr,
          width: fullWidth,
-@@ -612,6 +886,7 @@
+@@ -612,6 +939,7 @@
  
      const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
        ...getCaptureDefaults(),
@@ -570,8 +629,8 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
        pixelRatio: dpr,
        backgroundColor: bgColor,
 diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
---- a/widget/components/App.tsx	2026-11-01 00:17:28
-+++ b/widget/components/App.tsx	2026-10-31 22:51:04
+--- a/widget/components/App.tsx	2026-11-03 16:47:52
++++ b/widget/components/App.tsx	2026-11-03 15:49:52
 @@ -2,6 +2,9 @@
  import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
  import { WidgetConfig } from '../config.js';
@@ -862,7 +921,7 @@ diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
            onClose={handleRequestClose}
 diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/FeedbackForm.tsx
 --- a/widget/components/FeedbackForm.tsx	1970-01-01 02:00:00
-+++ b/widget/components/FeedbackForm.tsx	2026-11-01 00:12:50
++++ b/widget/components/FeedbackForm.tsx	2026-11-03 15:49:52
 @@ -0,0 +1,164 @@
 +import { FunctionComponent } from 'preact';
 +import { useState } from 'preact/hooks';
@@ -1030,7 +1089,7 @@ diff --color -ruN a/widget/components/FeedbackForm.tsx b/widget/components/Feedb
 +};
 diff --color -ruN a/widget/components/FeedbackMenu.tsx b/widget/components/FeedbackMenu.tsx
 --- a/widget/components/FeedbackMenu.tsx	1970-01-01 02:00:00
-+++ b/widget/components/FeedbackMenu.tsx	2026-10-31 22:49:48
++++ b/widget/components/FeedbackMenu.tsx	2026-11-03 15:49:52
 @@ -0,0 +1,70 @@
 +import { FunctionComponent, JSX } from 'preact';
 +import { Crosshair, PenLine } from 'lucide-preact';
@@ -1104,7 +1163,7 @@ diff --color -ruN a/widget/components/FeedbackMenu.tsx b/widget/components/Feedb
 +};
 diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/FeedbackPanel.tsx
 --- a/widget/components/FeedbackPanel.tsx	1970-01-01 02:00:00
-+++ b/widget/components/FeedbackPanel.tsx	2026-11-01 00:11:34
++++ b/widget/components/FeedbackPanel.tsx	2026-11-03 15:49:52
 @@ -0,0 +1,59 @@
 +import { ComponentChildren, FunctionComponent } from 'preact';
 +import { useEffect } from 'preact/hooks';
@@ -1167,7 +1226,7 @@ diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/Feed
 +};
 diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/FeedbackTab.tsx
 --- a/widget/components/FeedbackTab.tsx	1970-01-01 02:00:00
-+++ b/widget/components/FeedbackTab.tsx	2026-10-31 21:55:49
++++ b/widget/components/FeedbackTab.tsx	2026-11-03 15:49:52
 @@ -0,0 +1,51 @@
 +import { FunctionComponent } from 'preact';
 +import { useEffectiveTheme } from '../hooks/use-effective-theme.js';
@@ -1221,8 +1280,8 @@ diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/Feedba
 +  );
 +};
 diff --color -ruN a/widget/components/WidgetLauncherButton.tsx b/widget/components/WidgetLauncherButton.tsx
---- a/widget/components/WidgetLauncherButton.tsx	2026-11-01 00:17:28
-+++ b/widget/components/WidgetLauncherButton.tsx	2026-10-31 21:00:17
+--- a/widget/components/WidgetLauncherButton.tsx	2026-11-03 16:47:52
++++ b/widget/components/WidgetLauncherButton.tsx	2026-11-03 15:49:52
 @@ -10,6 +10,7 @@
  
  interface WidgetLauncherButtonProps {
@@ -1256,8 +1315,8 @@ diff --color -ruN a/widget/components/WidgetLauncherButton.tsx b/widget/componen
          ref={buttonRef}
          class={cn(
 diff --color -ruN a/widget/config.ts b/widget/config.ts
---- a/widget/config.ts	2026-11-01 00:17:28
-+++ b/widget/config.ts	2026-10-31 21:50:39
+--- a/widget/config.ts	2026-11-03 16:47:52
++++ b/widget/config.ts	2026-11-03 15:49:52
 @@ -60,6 +60,14 @@
    userActivityCapture: UserActivityCapturePolicy;
    captureMethod: 'visible' | 'fullpage' | 'element';
@@ -1274,8 +1333,8 @@ diff --color -ruN a/widget/config.ts b/widget/config.ts
    maxImageUploadSize: number;
    maxVideoUploadSize: number;
 diff --color -ruN a/widget/i18n/index.ts b/widget/i18n/index.ts
---- a/widget/i18n/index.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/index.ts	2026-10-31 21:50:07
+--- a/widget/i18n/index.ts	2026-11-03 16:47:52
++++ b/widget/i18n/index.ts	2026-11-03 15:49:52
 @@ -8,6 +8,7 @@
  import it from './locales/it.js';
  import ja from './locales/ja.js';
@@ -1293,8 +1352,8 @@ diff --color -ruN a/widget/i18n/index.ts b/widget/i18n/index.ts
  
  const enCatalog: EnCatalog = en;
 diff --color -ruN a/widget/i18n/locales/de.ts b/widget/i18n/locales/de.ts
---- a/widget/i18n/locales/de.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/de.ts	2026-10-31 21:50:07
+--- a/widget/i18n/locales/de.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/de.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
  
@@ -1304,8 +1363,8 @@ diff --color -ruN a/widget/i18n/locales/de.ts b/widget/i18n/locales/de.ts
  
    'aria.launcher': 'Bug melden',
 diff --color -ruN a/widget/i18n/locales/en.ts b/widget/i18n/locales/en.ts
---- a/widget/i18n/locales/en.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/en.ts	2026-11-01 00:11:16
+--- a/widget/i18n/locales/en.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/en.ts	2026-11-03 15:49:52
 @@ -101,6 +101,32 @@
    'annotation.defaultText': 'Text',
    'annotation.buttons.cancel': 'Cancel',
@@ -1340,8 +1399,8 @@ diff --color -ruN a/widget/i18n/locales/en.ts b/widget/i18n/locales/en.ts
  
  export default en;
 diff --color -ruN a/widget/i18n/locales/es.ts b/widget/i18n/locales/es.ts
---- a/widget/i18n/locales/es.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/es.ts	2026-10-31 21:50:07
+--- a/widget/i18n/locales/es.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/es.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
  
@@ -1351,8 +1410,8 @@ diff --color -ruN a/widget/i18n/locales/es.ts b/widget/i18n/locales/es.ts
  
    'aria.launcher': 'Informar de un error',
 diff --color -ruN a/widget/i18n/locales/fr.ts b/widget/i18n/locales/fr.ts
---- a/widget/i18n/locales/fr.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/fr.ts	2026-10-31 21:50:07
+--- a/widget/i18n/locales/fr.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/fr.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
  
@@ -1362,8 +1421,8 @@ diff --color -ruN a/widget/i18n/locales/fr.ts b/widget/i18n/locales/fr.ts
  
    'aria.launcher': 'Signaler un bug',
 diff --color -ruN a/widget/i18n/locales/it.ts b/widget/i18n/locales/it.ts
---- a/widget/i18n/locales/it.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/it.ts	2026-10-31 21:50:07
+--- a/widget/i18n/locales/it.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/it.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
  
@@ -1373,8 +1432,8 @@ diff --color -ruN a/widget/i18n/locales/it.ts b/widget/i18n/locales/it.ts
  
    'aria.launcher': 'Segnala bug',
 diff --color -ruN a/widget/i18n/locales/ja.ts b/widget/i18n/locales/ja.ts
---- a/widget/i18n/locales/ja.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/ja.ts	2026-10-31 21:50:07
+--- a/widget/i18n/locales/ja.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/ja.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
  
@@ -1384,8 +1443,8 @@ diff --color -ruN a/widget/i18n/locales/ja.ts b/widget/i18n/locales/ja.ts
  
    'aria.launcher': 'バグを報告',
 diff --color -ruN a/widget/i18n/locales/nl.ts b/widget/i18n/locales/nl.ts
---- a/widget/i18n/locales/nl.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/nl.ts	2026-10-31 21:50:07
+--- a/widget/i18n/locales/nl.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/nl.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
  
@@ -1396,7 +1455,7 @@ diff --color -ruN a/widget/i18n/locales/nl.ts b/widget/i18n/locales/nl.ts
    'aria.launcher': 'Bug melden',
 diff --color -ruN a/widget/i18n/locales/tr.ts b/widget/i18n/locales/tr.ts
 --- a/widget/i18n/locales/tr.ts	1970-01-01 02:00:00
-+++ b/widget/i18n/locales/tr.ts	2026-11-01 00:11:16
++++ b/widget/i18n/locales/tr.ts	2026-11-03 15:49:52
 @@ -0,0 +1,129 @@
 +import type { WidgetCatalog } from '../catalog.js';
 +
@@ -1528,8 +1587,8 @@ diff --color -ruN a/widget/i18n/locales/tr.ts b/widget/i18n/locales/tr.ts
 +
 +export default tr;
 diff --color -ruN a/widget/i18n/locales/zh.ts b/widget/i18n/locales/zh.ts
---- a/widget/i18n/locales/zh.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/locales/zh.ts	2026-10-31 21:50:07
+--- a/widget/i18n/locales/zh.ts	2026-11-03 16:47:52
++++ b/widget/i18n/locales/zh.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
  
@@ -1539,8 +1598,8 @@ diff --color -ruN a/widget/i18n/locales/zh.ts b/widget/i18n/locales/zh.ts
  
    'aria.launcher': '报告缺陷',
 diff --color -ruN a/widget/i18n/normalize.ts b/widget/i18n/normalize.ts
---- a/widget/i18n/normalize.ts	2026-11-01 00:17:28
-+++ b/widget/i18n/normalize.ts	2026-10-31 21:56:59
+--- a/widget/i18n/normalize.ts	2026-11-03 16:47:52
++++ b/widget/i18n/normalize.ts	2026-11-03 15:49:52
 @@ -28,7 +28,8 @@
      primary === 'nl' ||
      primary === 'es' ||
@@ -1552,8 +1611,8 @@ diff --color -ruN a/widget/i18n/normalize.ts b/widget/i18n/normalize.ts
      return primary;
    }
 diff --color -ruN a/widget/index.ts b/widget/index.ts
---- a/widget/index.ts	2026-11-01 00:17:28
-+++ b/widget/index.ts	2026-10-31 21:31:34
+--- a/widget/index.ts	2026-11-03 16:47:52
++++ b/widget/index.ts	2026-11-03 15:49:52
 @@ -17,6 +17,8 @@
    stopUserActivityCapture,
  } from './capture/context.js';
@@ -1606,7 +1665,7 @@ diff --color -ruN a/widget/index.ts b/widget/index.ts
    },
 diff --color -ruN a/widget/launcher-state.ts b/widget/launcher-state.ts
 --- a/widget/launcher-state.ts	1970-01-01 02:00:00
-+++ b/widget/launcher-state.ts	2026-10-31 21:31:34
++++ b/widget/launcher-state.ts	2026-11-03 15:49:52
 @@ -0,0 +1,11 @@
 +// Whether the page hides the launcher button (BugPin.hideLauncher): set before or after the widget starts.
 +let hidden = false;
@@ -1620,8 +1679,8 @@ diff --color -ruN a/widget/launcher-state.ts b/widget/launcher-state.ts
 +  document.dispatchEvent(new CustomEvent('bugpin:launcher', { detail: value }));
 +}
 diff --color -ruN a/widget/storage/report-buffer.ts b/widget/storage/report-buffer.ts
---- a/widget/storage/report-buffer.ts	2026-11-01 00:17:28
-+++ b/widget/storage/report-buffer.ts	2026-10-31 19:14:41
+--- a/widget/storage/report-buffer.ts	2026-11-03 16:47:52
++++ b/widget/storage/report-buffer.ts	2026-11-03 15:49:52
 @@ -217,7 +217,7 @@
            getExtensionFromDataUrl(item.dataUrl) || getExtensionFromMimeType(item.mimeType);
          const isVideo = item.mimeType.startsWith('video/');

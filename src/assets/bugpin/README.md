@@ -18,6 +18,9 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
   On a 9,000-node test page: 6.4 s → 1.5 s.
 - Page API: `BugPin.capture()` captures and opens the editor (as the launcher does); `BugPin.hideLauncher()`
   hides the launcher for pages that open the widget from their own control.
+- Images the page has already loaded are drawn from the page (at twice their shown size) instead of being
+  downloaded again while a capture runs; `includeQueryParams` is on, otherwise `get-file?id=1` and
+  `get-file?id=2` shared one cache entry and later captures repeated one image everywhere.
 - Attributes with names XML cannot hold (a stray `."` in a template) are dropped from the clone; one of them made
   the SVG invalid and the capture failed.
 - Small screens: the annotation area is no longer at least 700 px wide (the image was placed off screen); the
@@ -27,12 +30,13 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
   flow page: 7.5 s → 1.8 s, the image differs from the full copy in under 0.06 % of pixels (dark and light).
 
 Rebuild (Node 20.19+) in a clean folder: Tailwind scans everything under it that git does not ignore, so an old
-`dist/` or a second copy of the sources adds unused CSS and the file no longer matches.
+`dist/` or a second copy of the sources adds unused CSS and the file no longer matches. `package-lock.json`
+pins the versions the current `widget.js` was built with (BugPin commit f45ee03, 1.1.5).
 
 ```bash
 mkdir build && cp -R <bugpin>/src/widget <bugpin>/src/shared build/
 cd build && patch -p1 < captureOnOpen.patch
-cd widget && npm install --ignore-scripts && npx vite build   # dist/widget.js
+cd widget && cp <this folder>/package-lock.json . && npm ci --ignore-scripts && npx vite build   # dist/widget.js
 ```
 
 The receiving endpoints live in `controllers/api/WidgetController.php`; `bugpin.js` starts the widget.
