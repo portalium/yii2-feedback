@@ -25,12 +25,24 @@ class BugPin
     public const MAX_DATA_SIZE = 1048576;
     public const RATE_LIMIT = 10;
     public const RATE_WINDOW = 600;
-    /** Kinds of feedback the short form offers, with the label used in the mail. */
+    /** Kinds of feedback the short form offers, with the name used in the mail. */
     public const CATEGORIES = [
-        'bug' => 'Bug',
-        'idea' => 'Idea',
-        'question' => 'Question',
+        'bug' => 'Hata',
+        'idea' => 'Öneri',
+        'question' => 'Soru',
     ];
+
+    /**
+     * Trello label added from the subject when the mail goes to a board's email-to-board address (#Label; a label
+     * the board does not have stays in the title, so only existing ones are used).
+     */
+    public const TRELLO_LABELS = [
+        'bug' => '#Bug',
+        'idea' => '#Feature',
+    ];
+
+    /** Entries of each error list copied into the mail. */
+    public const MAIL_ERRORS = 5;
     public const TYPES = [
         'image/png' => 'png',
         'image/jpeg' => 'jpg',
@@ -249,28 +261,12 @@ class BugPin
             return false;
         }
         $saved = Json::decode(file_get_contents($dir . '/report.json'));
-        $data = $saved['report'];
-        $meta = is_array($data['metadata'] ?? null) ? $data['metadata'] : [];
-        $lines = [
-            'Type: ' . (self::CATEGORIES[$data['category'] ?? ''] ?? '-'),
-            'Title: ' . $data['title'],
-            'Priority: ' . ($data['priority'] ?? '-'),
-            'Reporter: ' . trim(($data['reporterName'] ?? '') . ' <' . ($data['reporterEmail'] ?? '') . '>'),
-            'Page: ' . ($meta['url'] ?? '-'),
-            'Browser: ' . trim(($meta['browser']['name'] ?? '') . ' ' . ($meta['browser']['version'] ?? '')),
-            'Viewport: ' . ($meta['viewport']['width'] ?? '?') . 'x' . ($meta['viewport']['height'] ?? '?'),
-            'Console errors: ' . count((array) ($meta['consoleErrors'] ?? [])),
-            'Network errors: ' . count((array) ($meta['networkErrors'] ?? [])),
-            'Report: ' . $id,
-            '',
-            (string) ($data['description'] ?? ''),
-        ];
 
         try {
             $message = $mailer->compose()
                 ->setTo($to)
-                ->setSubject('[' . (self::CATEGORIES[$data['category'] ?? ''] ?? 'Feedback') . '] ' . $data['title'])
-                ->setTextBody(implode("\n", $lines));
+                ->setSubject(self::mailSubject($saved['report']))
+                ->setTextBody(self::mailBody($saved));
             $from = (string) Yii::$app->setting->getValue('email::address');
             if ($from !== '') {
                 $message->setFrom([$from => (string) Yii::$app->setting->getValue('email::displayname')]);
@@ -287,6 +283,67 @@ class BugPin
 
             return false;
         }
+    }
+
+    /**
+     * "MAIL - <title> #Label": the subject becomes the card title on the SUITE board (its MAIL list) and the label is
+     * picked from it.
+     */
+    public static function mailSubject(array $report): string
+    {
+        $label = self::TRELLO_LABELS[$report['category'] ?? ''] ?? '';
+
+        return trim('MAIL - ' . $report['title'] . ' ' . $label);
+    }
+
+    /**
+     * The body becomes the card description, so it is Markdown: a few facts, the comment, then the console errors
+     * and failed requests themselves.
+     */
+    public static function mailBody(array $saved): string
+    {
+        $report = $saved['report'];
+        $meta = is_array($report['metadata'] ?? null) ? $report['metadata'] : [];
+        $browser = trim(($meta['browser']['name'] ?? '') . ' ' . ($meta['browser']['version'] ?? ''));
+        $os = trim(($meta['device']['os'] ?? '') . ' ' . ($meta['device']['osVersion'] ?? ''));
+        $screen = isset($meta['viewport']['width']) ? $meta['viewport']['width'] . '×' . ($meta['viewport']['height'] ?? '?') : '';
+        $reporter = trim(($report['reporterName'] ?? '') . ' ' . (($report['reporterEmail'] ?? '') !== '' ? '<' . $report['reporterEmail'] . '>' : ''));
+
+        $lines = ['**Tür:** ' . (self::CATEGORIES[$report['category'] ?? ''] ?? 'Geri bildirim')];
+        $lines[] = '**Sayfa:** ' . ($meta['url'] ?? '-');
+        if ($reporter !== '') {
+            $lines[] = '**Bildiren:** ' . $reporter;
+        }
+        $lines[] = '**Tarayıcı:** ' . implode(' · ', array_filter([$browser, $os, $screen]));
+        $lines[] = '**Rapor:** ' . $saved['id'];
+        $lines[] = '';
+        $lines[] = (string) ($report['description'] ?? '');
+
+        $console = array_values((array) ($meta['consoleErrors'] ?? []));
+        if ($console !== []) {
+            $lines[] = '';
+            $lines[] = '**Konsol hataları (' . count($console) . ')**';
+            foreach (array_slice($console, 0, self::MAIL_ERRORS) as $error) {
+                $lines[] = '- ' . self::oneLine((string) ($error['message'] ?? ''));
+            }
+        }
+        $network = array_values((array) ($meta['networkErrors'] ?? []));
+        if ($network !== []) {
+            $lines[] = '';
+            $lines[] = '**Başarısız istekler (' . count($network) . ')**';
+            foreach (array_slice($network, 0, self::MAIL_ERRORS) as $error) {
+                $lines[] = '- ' . self::oneLine(($error['method'] ?? '') . ' ' . ($error['url'] ?? '') . ' → ' . ($error['status'] ?? ''));
+            }
+        }
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    private static function oneLine(string $text): string
+    {
+        $text = trim(preg_replace('/\s+/', ' ', $text));
+
+        return mb_strlen($text) > 300 ? mb_substr($text, 0, 300) . '…' : $text;
     }
 
     /**

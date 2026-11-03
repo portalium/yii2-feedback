@@ -184,8 +184,9 @@ class BugPinTest extends BugPinTestCase
     }
 
     /**
-     * The short form sends the kind of feedback (bug, idea, question); it goes into the subject and the body of the
-     * mail. An unknown value is dropped instead of being stored.
+     * The mail is shaped for Trello's email-to-board address: the subject is the card title in the SUITE board's
+     * "MAIL - ..." form with the kind as a #label (bug → #Bug, idea → #Feature, question → none). An unknown kind is
+     * dropped instead of being stored.
      */
     public function testCategoryIsKeptAndLabelsTheMail(): void
     {
@@ -195,11 +196,46 @@ class BugPinTest extends BugPinTestCase
         $odd = BugPin::save(json_encode(['category' => '<script>'] + $data), []);
 
         $this->assertTrue(BugPin::mail($id));
-        $mail = file_get_contents(glob($this->tmp . '/mail/*.eml')[0]);
-        $this->assertStringContainsString('Subject: [Idea] Button does nothing', $mail);
-        $this->assertStringContainsString('Type: Idea', $mail);
+        $mail = quoted_printable_decode(file_get_contents(glob($this->tmp . '/mail/*.eml')[0]));
+        $this->assertStringContainsString('Subject: MAIL - Button does nothing #Feature', $mail);
+        $this->assertStringContainsString('**Tür:** Öneri', $mail);
+        $this->assertSame('MAIL - Button does nothing #Bug', BugPin::mailSubject(['title' => 'Button does nothing', 'category' => 'bug']));
+        $this->assertSame('MAIL - Why', BugPin::mailSubject(['title' => 'Why', 'category' => 'question']));
         $stored = json_decode(file_get_contents(Yii::getAlias(BugPin::$basePath) . "/$odd/report.json"), true);
         $this->assertArrayNotHasKey('category', $stored['report']);
+    }
+
+    /**
+     * The body becomes the card description (Markdown): facts, the comment, then the first console errors and failed
+     * requests themselves, each on one line and cut at 300 characters.
+     */
+    public function testMailBodyListsTheErrors(): void
+    {
+        $long = str_repeat('a', 400);
+        $body = BugPin::mailBody([
+            'id' => 'r1',
+            'report' => [
+                'title' => 'Save fails',
+                'description' => "Save does nothing\nsecond line",
+                'category' => 'bug',
+                'reporterEmail' => 'ada@example.com',
+                'metadata' => [
+                    'url' => 'https://suite/app/default/index',
+                    'browser' => ['name' => 'Chrome', 'version' => '142'],
+                    'device' => ['os' => 'macOS'],
+                    'viewport' => ['width' => 1440, 'height' => 900],
+                    'consoleErrors' => [['type' => 'error', 'message' => "x is\nundefined"], ['type' => 'error', 'message' => $long]],
+                    'networkErrors' => [['method' => 'POST', 'url' => '/api/app/1', 'status' => 500]],
+                ],
+            ],
+        ]);
+
+        $this->assertStringContainsString("**Tür:** Hata\n**Sayfa:** https://suite/app/default/index\n", $body);
+        $this->assertStringContainsString('**Bildiren:** <ada@example.com>', $body);
+        $this->assertStringContainsString('**Tarayıcı:** Chrome 142 · macOS · 1440×900', $body);
+        $this->assertStringContainsString("Save does nothing\nsecond line", $body);
+        $this->assertStringContainsString("**Konsol hataları (2)**\n- x is undefined\n- " . str_repeat('a', 300) . "…\n", $body);
+        $this->assertStringContainsString("**Başarısız istekler (1)**\n- POST /api/app/1 → 500", $body);
     }
 
     public function testNoMailWithoutAddresses(): void
