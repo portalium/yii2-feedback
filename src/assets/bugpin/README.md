@@ -28,6 +28,16 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
 - Only the CSS properties in `CAPTURE_STYLE_PROPERTIES` are copied per node (html-to-image copies all ~675,
   CSS variables included, into a 100 MB SVG); the CSS variables are set once on the capture root. On a Suite
   flow page: 7.5 s → 1.8 s, the image differs from the full copy in under 0.06 % of pixels (dark and light).
+- HTML elements that are not displayed and `<style>` elements are left out of the clone, and only displayed
+  images are waited for. On a Suite flow page 4,500 of 5,300 nodes were hidden (package list, closed tabs,
+  modals): the clone went from 18 MB to 2 MB, image requests from 155 to 23, the capture from ~3 s to ~0.5 s.
+  The page's style elements only brought back rules its linked stylesheets override (flow connections came out
+  thick and blue); the shapes inside an `<svg>` (copied whole by html-to-image, so without inline styles) get
+  their computed paint styles from the live page instead.
+- SVG image files are not drawn from the page: html-to-image labels the result by file extension, and a drawn
+  image labelled `image/svg+xml` came out broken (flow node icons).
+- A `focusin` inside the widget does not reach the page: an open Bootstrap modal (the flow page's loading modal)
+  saw focus leave it and pulled it back, so nothing could be typed into the form.
 
 Rebuild (Node 20.19+) in a clean folder: Tailwind scans everything under it that git does not ignore, so an old
 `dist/` or a second copy of the sources adds unused CSS and the file no longer matches. `package-lock.json`

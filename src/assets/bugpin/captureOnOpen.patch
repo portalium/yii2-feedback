@@ -1,5 +1,5 @@
 diff --color -ruN a/shared/types.ts b/shared/types.ts
---- a/shared/types.ts	2026-11-03 16:47:52
+--- a/shared/types.ts	2026-11-04 22:41:49
 +++ b/shared/types.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  // Locale Types
@@ -18,7 +18,7 @@ diff --color -ruN a/shared/types.ts b/shared/types.ts
  
  export type LocalizedString = Partial<Record<LocaleCode, string>> & { en: string };
 diff --color -ruN a/widget/annotate/AnnotationCanvas.tsx b/widget/annotate/AnnotationCanvas.tsx
---- a/widget/annotate/AnnotationCanvas.tsx	2026-11-03 16:47:52
+--- a/widget/annotate/AnnotationCanvas.tsx	2026-11-04 22:41:49
 +++ b/widget/annotate/AnnotationCanvas.tsx	2026-11-03 15:49:52
 @@ -17,6 +17,7 @@
    ZoomOut,
@@ -187,7 +187,7 @@ diff --color -ruN a/widget/annotate/AnnotationCanvas.tsx b/widget/annotate/Annot
        >
          <canvas ref={canvasRef} />
 diff --color -ruN a/widget/api/submit.ts b/widget/api/submit.ts
---- a/widget/api/submit.ts	2026-11-03 16:47:52
+--- a/widget/api/submit.ts	2026-11-04 22:41:49
 +++ b/widget/api/submit.ts	2026-11-03 15:49:52
 @@ -18,6 +18,8 @@
    title: string;
@@ -216,8 +216,8 @@ diff --color -ruN a/widget/api/submit.ts b/widget/api/submit.ts
    }
  
 diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
---- a/widget/capture/screenshot.ts	2026-11-03 16:47:52
-+++ b/widget/capture/screenshot.ts	2026-11-03 16:06:26
+--- a/widget/capture/screenshot.ts	2026-11-04 22:41:49
++++ b/widget/capture/screenshot.ts	2026-11-04 22:24:54
 @@ -1,5 +1,5 @@
 -import { toCanvas } from 'html-to-image';
 -import { withCaptureClone } from './capture-clone';
@@ -405,7 +405,41 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
  // Data attribute used to exclude elements from capture
  const EXCLUDE_ATTRIBUTE = 'data-bugpin-exclude';
  
-@@ -164,9 +336,131 @@
+@@ -44,6 +216,8 @@
+   const promises: Promise<void>[] = [];
+ 
+   images.forEach((img) => {
++    // Not displayed, so not captured; a lazy image there never loads and held the capture for the full timeout.
++    if (img.getClientRects().length === 0) return;
+     promises.push(
+       new Promise<void>((resolve) => {
+         const finish = () => {
+@@ -147,26 +321,201 @@
+ 
+ /**
+  * Filter function to exclude BugPin elements from capture
+- * Excludes: SCRIPT tags, elements with data-bugpin-exclude attribute
++ * Excludes: SCRIPT and STYLE tags, elements with data-bugpin-exclude attribute, HTML elements that are not
++ * displayed. Hidden parts (closed tabs, menus, modals, a flow page's package list) were most of the nodes of a
++ * large page and all of its image downloads. Every node of the clone carries its computed style, so the page's
++ * style elements only added rules the page's linked stylesheets override (flow connections came out blue).
+  */
+ function shouldIncludeNode(node: Node): boolean {
+   if (node instanceof HTMLElement) {
+-    // Exclude script tags
+-    if (node.tagName === 'SCRIPT') {
++    if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE') {
+       return false;
+     }
+     // Exclude any element marked with the exclude attribute
+     if (node.hasAttribute(EXCLUDE_ATTRIBUTE)) {
+       return false;
+     }
++    if (getComputedStyle(node).display === 'none') {
++      return false;
++    }
+   }
+   return true;
  }
  
  /**
@@ -485,18 +519,66 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
 +  }
 +}
 +
++// html-to-image copies an <svg> whole and styles only the svg itself; what the page's stylesheets give the shapes
++// inside (connection lines, icon colors) is written on them from the live page.
++const SVG_STYLE_PROPERTIES = [
++  'display', 'visibility', 'opacity', 'color',
++  'fill', 'fill-opacity', 'fill-rule',
++  'stroke', 'stroke-width', 'stroke-opacity', 'stroke-dasharray', 'stroke-dashoffset',
++  'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit',
++  'stop-color', 'stop-opacity',
++  'font-family', 'font-size', 'font-weight', 'text-anchor', 'dominant-baseline',
++];
++
++/**
++ * While a capture runs, every deep copy of a page <svg> (html-to-image copies an svg with cloneNode(true)) is
++ * remembered next to its original.
++ */
++function withSvgCopies<T>(copies: Map<SVGSVGElement, SVGSVGElement>, run: () => Promise<T>): Promise<T> {
++  const prototype = SVGSVGElement.prototype as { cloneNode?: Node['cloneNode'] };
++  const own = Object.prototype.hasOwnProperty.call(prototype, 'cloneNode');
++  const original = prototype.cloneNode as Node['cloneNode'];
++  prototype.cloneNode = function (this: SVGSVGElement, deep?: boolean) {
++    const copy = original.call(this, deep) as SVGSVGElement;
++    if (deep && this.isConnected) copies.set(this, copy);
++    return copy;
++  };
++  return run().finally(() => {
++    if (own) prototype.cloneNode = original;
++    else delete prototype.cloneNode;
++  });
++}
++
++function copySvgStyles(copies: Map<SVGSVGElement, SVGSVGElement>, cloneRoot: CloneRoot): void {
++  copies.forEach((copy, svg) => {
++    if (!cloneRoot.contains(copy)) return;
++    const sources = svg.querySelectorAll('*');
++    const targets = copy.querySelectorAll('*');
++    if (sources.length !== targets.length) return;
++    sources.forEach((source, j) => {
++      const computed = getComputedStyle(source);
++      const style = (targets[j] as SVGElement).style;
++      if (!style) return;
++      for (const name of SVG_STYLE_PROPERTIES) {
++        style.setProperty(name, computed.getPropertyValue(name));
++      }
++    });
++  });
++}
++
 +/**
 + * html-to-image downloads every image again to inline it: on a remote server one request per image, full-size
 + * ones included (5-6 s for the first capture of an app list). While a capture runs, a request for an image the
 + * page has already loaded is answered from that image, drawn at twice its shown size. Images the canvas may not
-+ * read (cross-origin without CORS) still go to the network.
++ * read (cross-origin without CORS) still go to the network. SVG files are left out: html-to-image takes the type
++ * from the file extension, and a drawn image labelled image/svg+xml shows as broken (flow node icons).
 + */
 +function withLoadedImages<T>(run: () => Promise<T>): Promise<T> {
 +  const loaded = new Map<string, HTMLImageElement>();
 +  for (const img of Array.from(document.images)) {
 +    if (img.complete && img.naturalWidth > 0) {
 +      for (const src of [img.src, img.currentSrc]) {
-+        if (src && !src.startsWith('data:')) loaded.set(src, img);
++        if (src && !src.startsWith('data:') && !/\.svg$/i.test(new URL(src).pathname)) loaded.set(src, img);
 +      }
 +    }
 +  }
@@ -537,7 +619,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
  function renderToCanvas(
    element: HTMLElement,
    options: ToCanvasOptions
-@@ -174,10 +468,16 @@
+@@ -174,10 +523,20 @@
    // html-to-image applies explicit width or height to the root clone itself.
    const rootSizeLocked = options.width !== undefined || options.height !== undefined;
    const scrollbars = recordScrollbars(element, rootSizeLocked);
@@ -545,20 +627,24 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
 -    element,
 -    (_svg, cloneRoot) => scrollbars.apply(cloneRoot),
 -    (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
++  const svgCopies = new Map<SVGSVGElement, SVGSVGElement>();
 +  return withLoadedImages(() =>
-+    withCaptureClone(
-+      element,
-+      (_svg, cloneRoot) => {
-+        scrollbars.apply(cloneRoot);
-+        dropInvalidAttributes(cloneRoot);
-+        if (options.includeStyleProperties) copyCustomProperties(element, cloneRoot);
-+      },
-+      (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
++    withSvgCopies(svgCopies, () =>
++      withCaptureClone(
++        element,
++        (_svg, cloneRoot) => {
++          scrollbars.apply(cloneRoot);
++          dropInvalidAttributes(cloneRoot);
++          if (options.includeStyleProperties) copyCustomProperties(element, cloneRoot);
++          copySvgStyles(svgCopies, cloneRoot);
++        },
++        (style) => toCanvas(element, { ...options, style, filter: scrollbars.observe(options.filter) })
++      )
 +    )
    );
  }
  
-@@ -318,6 +618,28 @@
+@@ -318,6 +677,28 @@
    return { skip: false };
  }
  
@@ -587,7 +673,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
  /**
   * Build capture options adapted to the current page. Pages without
   * font-embedding hazards get full font embedding for pixel-perfect screenshots.
-@@ -331,6 +653,9 @@
+@@ -331,6 +712,9 @@
    }
    return {
      skipFonts: result.skip,
@@ -597,7 +683,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
      imagePlaceholder: TRANSPARENT_PIXEL,
      // Prevent html-to-image from rejecting when a cloned <img> fails to render.
      // This handles the case where fetch() succeeds (200) but returns non-image
-@@ -525,12 +850,13 @@
+@@ -525,12 +909,13 @@
        // Capture from origin to the end of the visible viewport
        const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
          ...getCaptureDefaults(),
@@ -612,7 +698,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
        };
  
        const fullCanvas = await renderToCanvas(element, toCanvasOptions);
-@@ -593,6 +919,7 @@
+@@ -593,6 +978,7 @@
  
        const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
          ...getCaptureDefaults(),
@@ -620,7 +706,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
          cacheBust: cacheBust ?? true, // Default on for fullpage (more likely to have stale images)
          pixelRatio: dpr,
          width: fullWidth,
-@@ -612,6 +939,7 @@
+@@ -612,6 +998,7 @@
  
      const toCanvasOptions: Parameters<typeof toCanvas>[1] = {
        ...getCaptureDefaults(),
@@ -629,7 +715,7 @@ diff --color -ruN a/widget/capture/screenshot.ts b/widget/capture/screenshot.ts
        pixelRatio: dpr,
        backgroundColor: bgColor,
 diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
---- a/widget/components/App.tsx	2026-11-03 16:47:52
+--- a/widget/components/App.tsx	2026-11-04 22:41:49
 +++ b/widget/components/App.tsx	2026-11-03 15:49:52
 @@ -2,6 +2,9 @@
  import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
@@ -1280,7 +1366,7 @@ diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/Feedba
 +  );
 +};
 diff --color -ruN a/widget/components/WidgetLauncherButton.tsx b/widget/components/WidgetLauncherButton.tsx
---- a/widget/components/WidgetLauncherButton.tsx	2026-11-03 16:47:52
+--- a/widget/components/WidgetLauncherButton.tsx	2026-11-04 22:41:49
 +++ b/widget/components/WidgetLauncherButton.tsx	2026-11-03 15:49:52
 @@ -10,6 +10,7 @@
  
@@ -1315,7 +1401,7 @@ diff --color -ruN a/widget/components/WidgetLauncherButton.tsx b/widget/componen
          ref={buttonRef}
          class={cn(
 diff --color -ruN a/widget/config.ts b/widget/config.ts
---- a/widget/config.ts	2026-11-03 16:47:52
+--- a/widget/config.ts	2026-11-04 22:41:49
 +++ b/widget/config.ts	2026-11-03 15:49:52
 @@ -60,6 +60,14 @@
    userActivityCapture: UserActivityCapturePolicy;
@@ -1333,7 +1419,7 @@ diff --color -ruN a/widget/config.ts b/widget/config.ts
    maxImageUploadSize: number;
    maxVideoUploadSize: number;
 diff --color -ruN a/widget/i18n/index.ts b/widget/i18n/index.ts
---- a/widget/i18n/index.ts	2026-11-03 16:47:52
+--- a/widget/i18n/index.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/index.ts	2026-11-03 15:49:52
 @@ -8,6 +8,7 @@
  import it from './locales/it.js';
@@ -1352,7 +1438,7 @@ diff --color -ruN a/widget/i18n/index.ts b/widget/i18n/index.ts
  
  const enCatalog: EnCatalog = en;
 diff --color -ruN a/widget/i18n/locales/de.ts b/widget/i18n/locales/de.ts
---- a/widget/i18n/locales/de.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/de.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/de.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1363,7 +1449,7 @@ diff --color -ruN a/widget/i18n/locales/de.ts b/widget/i18n/locales/de.ts
  
    'aria.launcher': 'Bug melden',
 diff --color -ruN a/widget/i18n/locales/en.ts b/widget/i18n/locales/en.ts
---- a/widget/i18n/locales/en.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/en.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/en.ts	2026-11-03 15:49:52
 @@ -101,6 +101,32 @@
    'annotation.defaultText': 'Text',
@@ -1399,7 +1485,7 @@ diff --color -ruN a/widget/i18n/locales/en.ts b/widget/i18n/locales/en.ts
  
  export default en;
 diff --color -ruN a/widget/i18n/locales/es.ts b/widget/i18n/locales/es.ts
---- a/widget/i18n/locales/es.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/es.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/es.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1410,7 +1496,7 @@ diff --color -ruN a/widget/i18n/locales/es.ts b/widget/i18n/locales/es.ts
  
    'aria.launcher': 'Informar de un error',
 diff --color -ruN a/widget/i18n/locales/fr.ts b/widget/i18n/locales/fr.ts
---- a/widget/i18n/locales/fr.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/fr.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/fr.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1421,7 +1507,7 @@ diff --color -ruN a/widget/i18n/locales/fr.ts b/widget/i18n/locales/fr.ts
  
    'aria.launcher': 'Signaler un bug',
 diff --color -ruN a/widget/i18n/locales/it.ts b/widget/i18n/locales/it.ts
---- a/widget/i18n/locales/it.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/it.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/it.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1432,7 +1518,7 @@ diff --color -ruN a/widget/i18n/locales/it.ts b/widget/i18n/locales/it.ts
  
    'aria.launcher': 'Segnala bug',
 diff --color -ruN a/widget/i18n/locales/ja.ts b/widget/i18n/locales/ja.ts
---- a/widget/i18n/locales/ja.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/ja.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/ja.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1443,7 +1529,7 @@ diff --color -ruN a/widget/i18n/locales/ja.ts b/widget/i18n/locales/ja.ts
  
    'aria.launcher': 'バグを報告',
 diff --color -ruN a/widget/i18n/locales/nl.ts b/widget/i18n/locales/nl.ts
---- a/widget/i18n/locales/nl.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/nl.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/nl.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1587,7 +1673,7 @@ diff --color -ruN a/widget/i18n/locales/tr.ts b/widget/i18n/locales/tr.ts
 +
 +export default tr;
 diff --color -ruN a/widget/i18n/locales/zh.ts b/widget/i18n/locales/zh.ts
---- a/widget/i18n/locales/zh.ts	2026-11-03 16:47:52
+--- a/widget/i18n/locales/zh.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/locales/zh.ts	2026-11-03 15:49:52
 @@ -1,6 +1,6 @@
  import type { WidgetCatalog } from '../catalog.js';
@@ -1598,7 +1684,7 @@ diff --color -ruN a/widget/i18n/locales/zh.ts b/widget/i18n/locales/zh.ts
  
    'aria.launcher': '报告缺陷',
 diff --color -ruN a/widget/i18n/normalize.ts b/widget/i18n/normalize.ts
---- a/widget/i18n/normalize.ts	2026-11-03 16:47:52
+--- a/widget/i18n/normalize.ts	2026-11-04 22:41:49
 +++ b/widget/i18n/normalize.ts	2026-11-03 15:49:52
 @@ -28,7 +28,8 @@
      primary === 'nl' ||
@@ -1611,8 +1697,8 @@ diff --color -ruN a/widget/i18n/normalize.ts b/widget/i18n/normalize.ts
      return primary;
    }
 diff --color -ruN a/widget/index.ts b/widget/index.ts
---- a/widget/index.ts	2026-11-03 16:47:52
-+++ b/widget/index.ts	2026-11-03 15:49:52
+--- a/widget/index.ts	2026-11-04 22:41:49
++++ b/widget/index.ts	2026-11-04 22:10:32
 @@ -17,6 +17,8 @@
    stopUserActivityCapture,
  } from './capture/context.js';
@@ -1622,7 +1708,18 @@ diff --color -ruN a/widget/index.ts b/widget/index.ts
  
  // Widget styles (will be injected into Shadow DOM)
  import styles from './styles/main.css?inline';
-@@ -186,6 +188,10 @@
+@@ -158,6 +160,10 @@
+   // Attach Shadow DOM
+   const shadow = container.attachShadow({ mode: 'open' });
+ 
++  // Focus moving into the widget reaches the page as a focusin on this host, which a focus trap of the page (an open
++  // Bootstrap modal) treats as focus leaving the modal and pulls back, so nothing could be typed into the form.
++  container.addEventListener('focusin', (event) => event.stopPropagation());
++
+   // Inject styles
+   const styleElement = document.createElement('style');
+   styleElement.textContent = styles;
+@@ -186,6 +192,10 @@
  
    // Render Preact app
    render(h(App, { config }), root);
@@ -1633,7 +1730,7 @@ diff --color -ruN a/widget/index.ts b/widget/index.ts
  }
  
  /**
-@@ -253,6 +259,8 @@
+@@ -253,6 +263,8 @@
        ) => Promise<void>;
        open: () => void;
        close: () => void;
@@ -1642,7 +1739,7 @@ diff --color -ruN a/widget/index.ts b/widget/index.ts
        setLanguage: (code: string) => LocaleCode | null;
        getLanguage: () => LocaleCode;
      };
-@@ -305,6 +313,20 @@
+@@ -305,6 +317,20 @@
    /**
     * Close the bug report dialog
     */
@@ -1679,7 +1776,7 @@ diff --color -ruN a/widget/launcher-state.ts b/widget/launcher-state.ts
 +  document.dispatchEvent(new CustomEvent('bugpin:launcher', { detail: value }));
 +}
 diff --color -ruN a/widget/storage/report-buffer.ts b/widget/storage/report-buffer.ts
---- a/widget/storage/report-buffer.ts	2026-11-03 16:47:52
+--- a/widget/storage/report-buffer.ts	2026-11-04 22:41:49
 +++ b/widget/storage/report-buffer.ts	2026-11-03 15:49:52
 @@ -217,7 +217,7 @@
            getExtensionFromDataUrl(item.dataUrl) || getExtensionFromMimeType(item.mimeType);

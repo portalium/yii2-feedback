@@ -65,9 +65,9 @@ Reports are written to `@runtime/feedback/<id>/` (`report.json` + `media-<n>.<ex
 ## Screenshots
 
 Captures are DOM renders (html-to-image), not pixels from the screen. The patched widget is tuned for large pages:
-only the CSS properties that affect rendering are copied per node, CSS variables once on the root, off-screen
-elements are skipped, fonts are inlined once. On a 6,000-node page this takes about 1.8 s instead of 7.5 s.
-Video, `<canvas>` content and cross-origin images may come out empty.
+only the CSS properties that affect rendering are copied per node, CSS variables once on the root, off-screen and
+hidden elements are skipped, fonts are inlined once. A Suite flow page (5,300 nodes) takes about 0.5 s instead of
+7.5 s. Video, `<canvas>` content and cross-origin images may come out empty.
 
 ## Testing
 
