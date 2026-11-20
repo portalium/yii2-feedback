@@ -26,9 +26,10 @@ class Module extends \portalium\base\Module
     public $position = 'bottom-right';
 
     /**
-     * Launcher distance from its corner in px, e.g. ['bottom' => 88] to clear another floating button.
+     * Launcher distance in px. 'button': from its corner, e.g. ['bottom' => 88] to clear another floating button.
+     * 'tab': only 'bottom' is read; without it the tab sits in the middle of the right edge.
      */
-    public $launcherOffset = [];
+    public $launcherOffset = ['bottom' => 100];
 
     /**
      * The BugPin widget builds its URLs from the site root, so the endpoints answer on /api/widget/...

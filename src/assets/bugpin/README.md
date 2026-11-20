@@ -14,7 +14,8 @@ https://github.com/aranticlabs/bugpin, `src/widget` + `src/shared`) with `captur
   `media` fields.
 - Faster 'visible' captures: off-screen absolute/fixed elements are skipped, in-flow elements below or right
   of the viewport are kept as empty boxes; the inlined font CSS is built once after start and reused;
-  `capturePixelRatio` option (Suite passes 1). `launcherOffset` option: launcher distance from its corner in px.
+  `capturePixelRatio` option (Suite passes 1). `launcherOffset` option: launcher distance from its corner in px; the tab reads only `bottom` (without it the tab
+  stays in the middle of the right edge).
   On a 9,000-node test page: 6.4 s → 1.5 s.
 - Page API: `BugPin.capture()` captures and opens the editor (as the launcher does); `BugPin.hideLauncher()`
   hides the launcher for pages that open the widget from their own control.

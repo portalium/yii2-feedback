@@ -892,7 +892,7 @@ diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
    // Get the media item being annotated
    const annotatingMedia = annotatingMediaId
      ? media.find((item) => item.id === annotatingMediaId)
-@@ -420,29 +504,65 @@
+@@ -420,29 +504,66 @@
  
    return (
      <div ref={containerRef} class={`bugpin-container bugpin-theme-${effectiveTheme}`}>
@@ -924,6 +924,7 @@ diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
 +          lightTextColor={config.lightTextColor}
 +          darkColor={config.darkButtonColor}
 +          darkTextColor={config.darkTextColor}
++          offset={config.launcherOffset}
 +          expanded={step === 'menu'}
 +          onClick={handleTabClick}
 +        />
@@ -980,7 +981,7 @@ diff --color -ruN a/widget/components/App.tsx b/widget/components/App.tsx
          <div class="fixed inset-0 z-[2147483646] bg-black/50 flex items-center justify-center p-5 animate-[fadeIn_0.2s_ease-out]">
            <div class="relative w-full max-w-4xl h-[770px] max-h-[calc(100vh-40px)] min-h-0 bg-background border border-solid border-border rounded shadow-lg overflow-hidden flex flex-col animate-[slideUp_0.2s_ease-out]">
              <AnnotationCanvasComponent
-@@ -454,7 +574,23 @@
+@@ -454,7 +575,23 @@
          </div>
        )}
  
@@ -1313,7 +1314,7 @@ diff --color -ruN a/widget/components/FeedbackPanel.tsx b/widget/components/Feed
 diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/FeedbackTab.tsx
 --- a/widget/components/FeedbackTab.tsx	1970-01-01 02:00:00
 +++ b/widget/components/FeedbackTab.tsx	2026-11-03 15:49:52
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,58 @@
 +import { FunctionComponent } from 'preact';
 +import { useEffectiveTheme } from '../hooks/use-effective-theme.js';
 +import { useLocale } from '../hooks/use-locale.js';
@@ -1325,6 +1326,7 @@ diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/Feedba
 +  lightTextColor: string;
 +  darkColor: string;
 +  darkTextColor: string;
++  offset?: { bottom?: number };
 +  expanded: boolean;
 +  onClick: () => void;
 +}
@@ -1333,7 +1335,8 @@ diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/Feedba
 +// widget's shadow root.
 +
 +/**
-+ * Launcher of the 'tab' style: a vertical tab stuck to the middle of the right edge, read from bottom to top.
++ * Launcher of the 'tab' style: a vertical tab stuck to the right edge, read from bottom to top. It sits in the middle
++ * of the edge, or offset.bottom px above the bottom when that is given (launcherOffset).
 + */
 +export const FeedbackTab: FunctionComponent<FeedbackTabProps> = ({
 +  theme,
@@ -1341,14 +1344,19 @@ diff --color -ruN a/widget/components/FeedbackTab.tsx b/widget/components/Feedba
 +  lightTextColor,
 +  darkColor,
 +  darkTextColor,
++  offset,
 +  expanded,
 +  onClick,
 +}) => {
 +  useLocale();
 +  const dark = useEffectiveTheme(theme) === 'dark';
++  const fromBottom = offset?.bottom != null;
 +
 +  return (
-+    <div class="fixed right-0 top-1/2 [transform:translateY(-50%)] z-[2147483645]">
++    <div
++      class={fromBottom ? 'fixed right-0 z-[2147483645]' : 'fixed right-0 top-1/2 [transform:translateY(-50%)] z-[2147483645]'}
++      style={fromBottom ? { bottom: `${offset.bottom}px` } : undefined}
++    >
 +      <button
 +        type="button"
 +        class="block border-none cursor-pointer px-2.5 py-4 rounded-r-lg text-sm font-semibold tracking-wide shadow-lg transition-[padding] duration-150 hover:pb-5 [writing-mode:vertical-rl] [transform:rotate(180deg)]"

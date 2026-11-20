@@ -25,8 +25,9 @@ composer require portalium/yii2-feedback
    'feedback' => ['class' => 'portalium\feedback\Module'],
    ```
    Web module options: `launcher` (`tab` default; `button` = a round corner button with the classic dialog),
-   and for `button`: `position` (`bottom-right` default, `bottom-left`, `top-right`, `top-left`) and
-   `launcherOffset` (px from that corner, e.g. `['bottom' => 88]` to sit above another floating button).
+   `launcherOffset` (px; default `['bottom' => 100]`: the tab sits 100 px above the bottom of the right edge,
+   `[]` puts it back in the middle; for `button` the distance from its corner, e.g. `['bottom' => 88]`), and for
+   `button`: `position` (`bottom-right` default, `bottom-left`, `top-right`, `top-left`).
 2. Settings:
    ```bash
    php portalium migrate --migrationPath=@vendor/portalium/yii2-feedback/src/migrations --interactive=0
