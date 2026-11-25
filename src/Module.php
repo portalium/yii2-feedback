@@ -12,6 +12,8 @@ class Module extends \portalium\base\Module
 
     public static $name = 'feedback';
 
+
+    public static $icon = 'comment';
     public static $description = 'Feedback Module';
 
     /**
